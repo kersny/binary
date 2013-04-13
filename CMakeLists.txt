@@ -21,6 +21,13 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 #uncomment if you have defined services
 #rosbuild_gensrv()
 
+rosbuild_add_executable(BINary src/stereoSubscriber.cpp 
+                               src/stereoProcess.cpp
+                               src/utilities.cpp)
+
+rosbuild_add_boost_directories()
+rosbuild_link_boost(BINary thread system signals)
+
 #common commands for building c++ executables and libraries
 #rosbuild_add_library(${PROJECT_NAME} src/example.cpp)
 #target_link_libraries(${PROJECT_NAME} another_library)
