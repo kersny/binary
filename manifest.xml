@@ -1,0 +1,23 @@
+<package>
+  <description brief="binary">
+
+     BINary Augmented Reality, yo.
+
+  </description>
+  <author>Kerry Snyder, Neal Bhasin</author>
+  <license>CC BY-NC 3.0</license>
+  <review status="unreviewed" notes=""/>
+  <url>https://github.com/kersny/binary</url>
+  <versioncontrol type="git" url="git://github.com/kersny/binary.git"/>
+  
+  <depend package="tf"/>
+  <depend package="roscpp"/>
+  <depend package="sensor_msgs"/>
+  <depend package="cv_bridge"/>
+  <depend package="pcl_ros"/>
+  <depend package="image_transport"/>
+  <depend package="opencv2"/>
+
+</package>
+
+
