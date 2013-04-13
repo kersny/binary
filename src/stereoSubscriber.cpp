@@ -12,6 +12,11 @@
 
 #include "stereoSubscriber.hpp"
 
+/**
+  * Converts a ROS sensor_msgs 8-bit grayscale image to an OpenCV Mat.
+  * @param img Pointer to the const ROS image.
+  * @returns The converted Mat.
+*/
 cv::Mat im_to_opencv(const sm::ImageConstPtr& img)
 {
     debug_print("Converting ROS sensor_msgs image to OpenCV Mat \n", 3);
@@ -27,6 +32,12 @@ cv::Mat im_to_opencv(const sm::ImageConstPtr& img)
     return im_mat;
 }
 
+/**
+  * ROS callback invoked when an approximately synchronized pair 
+  *  of sensor_msgs Images is recieved
+  * @param L_image The left image.
+  * @param R_image The right image.
+*/
 void im_pair_callback(const sm::ImageConstPtr& L_Image,
                       const sm::ImageConstPtr& R_Image)
 {
