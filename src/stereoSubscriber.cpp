@@ -10,14 +10,15 @@
 
 #include <string>
 
-#include "stereoSubscriber.hpp"
+#include "stereoProcess.hpp"
+#include "utilities.hpp"
 
 /**
   * Converts a ROS sensor_msgs 8-bit grayscale image to an OpenCV Mat.
   * @param img Pointer to the const ROS image.
   * @returns The converted Mat.
 */
-cv::Mat im_to_opencv(const sm::ImageConstPtr& img)
+cv::Mat StereoProcess::im_to_opencv(const sm::ImageConstPtr& img)
 {
     debug_print("Converting ROS sensor_msgs image to OpenCV Mat \n", 3);
     cv_bridge::CvImageConstPtr cv_ptr;
@@ -38,8 +39,8 @@ cv::Mat im_to_opencv(const sm::ImageConstPtr& img)
   * @param L_image The left image.
   * @param R_image The right image.
 */
-void im_pair_callback(const sm::ImageConstPtr& L_Image,
-                      const sm::ImageConstPtr& R_Image)
+void StereoProcess::im_pair_callback(const sm::ImageConstPtr& L_Image,
+                                     const sm::ImageConstPtr& R_Image)
 {
     debug_print("\nRecieved message pair \n", 3);
     cv::Mat L_mat = im_to_opencv(L_Image);
