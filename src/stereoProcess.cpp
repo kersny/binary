@@ -52,25 +52,45 @@ void process_im_pair(const cv::Mat& L_mat, const cv::Mat& R_mat, ros::Time t)
     std::vector< cv::DMatch > matches;
     matcher.match(L_features, R_features, matches );
 
-    // Refine matches (based on min distance, not RANSAC)
-    cv::vector<cv::DMatch> good_matches;
-    double min = 100.0;
-    for(uint i=0; i < L_kps.size(); i++) {
-        if(matches[i].distance < min) {
-            good_matches.push_back(matches[i]);
+    if(matches.size() == 0) {
+        debug_print("No matches found!\n", 2);
+    } else {
+        debug_print("Filtering for best matches.\n", 3);
+        // Compute mean match distance
+        double dist_sum = 0.0;
+        for(uint i=0; i < matches.size(); i++) {
+            dist_sum += matches[i].distance;
         }
-    }
+        double dist_mean = dist_sum / matches.size();
+        // Find standard deviation
+        double sum_sq_diff = 0.0;
+        for(uint i=0; i < matches.size(); i++) {
+            double cur_diff = matches[i].distance - dist_mean;
+            sum_sq_diff += cur_diff * cur_diff;
+        }
+        double std_dev = sqrt(sum_sq_diff / matches.size());
+        // Refine matches by throwing out outliers
+        // outlier_factor = number of standard deviations 
+        //                  above mean to consider an outlier
+        double outlier_factor = -0.4;
+        cv::vector<cv::DMatch> good_matches;
+        for(uint i=0; i < L_kps.size(); i++) {
+            if(matches[i].distance < dist_mean + outlier_factor * std_dev) {
+                good_matches.push_back(matches[i]);
+            }
+        }
 
-    // Display matches
-    cv::Mat img_matches;
-    cv::drawMatches(L_mat, L_kps, R_mat, R_kps,
-                    good_matches, img_matches, cv::Scalar::all(-1), cv::Scalar::all(-1),
-                    std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
-    cv::Mat matches_small;
-    matches_small = cv::Mat::zeros(img_matches.rows / 3, img_matches.cols / 3, 16);
-    cv::resize(img_matches, matches_small, matches_small.size());
-    cv::namedWindow("Matches", CV_WINDOW_AUTOSIZE); 
-    cv::imshow("Matches" , matches_small);
+        // Display matches
+        cv::Mat img_matches;
+        cv::drawMatches(L_mat, L_kps, R_mat, R_kps,
+                        good_matches, img_matches, cv::Scalar::all(-1), cv::Scalar::all(-1),
+                        std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
+        cv::Mat matches_small;
+        matches_small = cv::Mat::zeros(img_matches.rows / 3, img_matches.cols / 3, 16);
+        cv::resize(img_matches, matches_small, matches_small.size());
+        cv::namedWindow("Matches", CV_WINDOW_AUTOSIZE); 
+        cv::imshow("Matches" , matches_small);
+    }
 
     cv::Mat L_out, R_out;
     cv::drawKeypoints(L_mat, L_kps, L_out, cv::Scalar(255, 0, 0), DRK);

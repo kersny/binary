@@ -41,7 +41,7 @@ cv::Mat im_to_opencv(const sm::ImageConstPtr& img)
 void im_pair_callback(const sm::ImageConstPtr& L_Image,
                       const sm::ImageConstPtr& R_Image)
 {
-    debug_print("Recieved message pair \n", 3);
+    debug_print("\nRecieved message pair \n", 3);
     cv::Mat L_mat = im_to_opencv(L_Image);
     cv::Mat R_mat = im_to_opencv(R_Image);
 
