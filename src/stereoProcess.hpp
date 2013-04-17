@@ -19,6 +19,7 @@
 #include "opencv2/highgui/highgui.hpp"
 
 #include <string>
+#include <assert.h>
 
 #include "utilities.hpp"
 
@@ -35,6 +36,10 @@ class StereoProcess {
         void im_pair_callback(const sm::ImageConstPtr&, const sm::ImageConstPtr&);
 
     private:
+        std::vector<cv::KeyPoint> P_kps;
+        cv::Mat P_features;
+        cv::Mat P_mat;
+
         std::vector<cv::KeyPoint> get_keypoints(cv::Mat);
         cv::Mat extract_features(cv::Mat, std::vector<cv::KeyPoint>);
         cv::Mat im_to_opencv(const sm::ImageConstPtr&);
