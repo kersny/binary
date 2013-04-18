@@ -1,4 +1,6 @@
 #include "stereoProcess.hpp"
+//BAD TODO: FIX to be not horribly bad
+#include "trifocalTensor.cpp"
 
 #define DRK cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS
 
@@ -56,7 +58,7 @@ std::vector<cv::DMatch> get_matches(cv::Mat L_features, cv::Mat R_features)
         }
         double std_dev = sqrt(sum_sq_diff / matches.size());
         // Refine matches by throwing out outliers
-        // outlier_factor = number of standard deviations 
+        // outlier_factor = number of standard deviations
         //                  above mean to consider an outlier
         double outlier_factor = -0.3;
         cv::vector<cv::DMatch> good_matches;
@@ -84,7 +86,7 @@ std::vector<int> get_query_idxs(std::vector<cv::DMatch> matches)
 int find_kp(std::vector<int> q_idxs, int x) {
     if(std::binary_search(q_idxs.begin(), q_idxs.end(), x)) {
         // R_index = Index of R keypoint in RP matches
-        std::vector<int>::iterator index_iter = 
+        std::vector<int>::iterator index_iter =
             std::lower_bound(q_idxs.begin(), q_idxs.end(), x);
         int R_index = index_iter - q_idxs.begin();
         return R_index;
@@ -100,8 +102,8 @@ class TripleMatches {
         std::vector<cv::KeyPoint> P_kps;
 };
 
-void StereoProcess::process_im_pair(const cv::Mat& L_mat, 
-                                    const cv::Mat& R_mat, 
+void StereoProcess::process_im_pair(const cv::Mat& L_mat,
+                                    const cv::Mat& R_mat,
                                     ros::Time t)
 {
     std::ostringstream os;
@@ -118,17 +120,17 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
     //  or if no features found.
     if(P_kps.size() > 0 && L_kps.size() > 0 && R_kps.size() > 0) {
 
-        std::vector<cv::DMatch> LR_matches = 
+        std::vector<cv::DMatch> LR_matches =
             get_matches(L_features, R_features);
 
         std::cout << "\nLR size: " << LR_matches.size() << "\n";
 
-        std::vector<cv::DMatch> RP_matches = 
+        std::vector<cv::DMatch> RP_matches =
             get_matches(R_features, P_features);
 
         std::cout << "\nRP size: " << RP_matches.size() << "\n";
 
-        std::vector<cv::DMatch> PL_matches = 
+        std::vector<cv::DMatch> PL_matches =
             get_matches(P_features, L_features);
 
         std::cout << "\nPL size: " << PL_matches.size() << "\n";
@@ -162,12 +164,41 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
         }
 
         std::cout << "\nT size: " << t.R_kps.size() << "\n";
+	std::vector<Eigen::Matrix<double, 3, 6> > matchPoints;
+	Eigen::Matrix<double, 3, 6> points1;
+	Eigen::Matrix<double, 3, 6> points2;
+	Eigen::Matrix<double, 3, 6> points3;
+	for (int i = 0; i < 6; i++) {
+	    Eigen::Vector3d pt1;
+	    pt1 << t.R_kps[i].pt.x, t.R_kps[i].pt.y, 1;
+	    points1.block<3,1>(0,i) = pt1;
+	    Eigen::Vector3d pt2;
+	    pt2 << t.L_kps[i].pt.x, t.L_kps[i].pt.y, 1;
+	    points2.block<3,1>(0,i) = pt2;
+	    Eigen::Vector3d pt3;
+	    pt3 << t.P_kps[i].pt.x, t.P_kps[i].pt.y, 1;
+	    points3.block<3,1>(0,i) = pt3;
+	}
+	matchPoints.push_back(points1);
+	matchPoints.push_back(points2);
+	matchPoints.push_back(points3);
+	std::vector<std::vector<Matrix<double, 3, 4> > > ret = computeTensorCandidates(matchPoints);
+	for (int i = 0; i < ret.size(); i++) {
+	    for (int j = 0; j < 3; j++) {
+		cv::Mat proj, K, R, t;
+		cv::eigen2cv(ret[i][j], proj);
+		cv::decomposeProjectionMatrix(proj, K, R, t);
+		std::cout << K << endl;
+		std::cout << R << endl;
+		std::cout << t << endl;
+	    }
+	}
 
         // features / matches of triple matches
         cv::Mat L2_features = extract_features(L_mat, t.L_kps);
         cv::Mat R2_features = extract_features(R_mat, t.R_kps);
 
-        std::vector<cv::DMatch> LR2_matches = 
+        std::vector<cv::DMatch> LR2_matches =
             get_matches(L2_features, R2_features);
 
         // Display matches
@@ -178,7 +209,7 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
         cv::Mat matches_small;
         matches_small = cv::Mat::zeros(img_matches.rows / 3, img_matches.cols / 3, 16);
         cv::resize(img_matches, matches_small, matches_small.size());
-        cv::namedWindow("Matches", CV_WINDOW_AUTOSIZE); 
+        cv::namedWindow("Matches", CV_WINDOW_AUTOSIZE);
         cv::imshow("Matches" , matches_small);
 
         cv::Mat L_out, R_out, P_out;
@@ -192,7 +223,7 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
         cv::resize(L_out, L_small, L_small.size());
         cv::resize(R_out, R_small, R_small.size());
         cv::resize(P_out, P_small, P_small.size());
-        cv::namedWindow("LEFT",  CV_WINDOW_AUTOSIZE); 
+        cv::namedWindow("LEFT",  CV_WINDOW_AUTOSIZE);
         cv::namedWindow("RIGHT", CV_WINDOW_AUTOSIZE);
         cv::namedWindow("PREV", CV_WINDOW_AUTOSIZE);
         cv::imshow("LEFT" , L_small);
@@ -219,7 +250,7 @@ int main(int argc, char** argv)
     typedef mf::sync_policies::ApproximateTime<sm::Image, sm::Image> MySyncPolicy;
     mf::Synchronizer<MySyncPolicy> sync( \
         MySyncPolicy(sp.max_im_pairs), L_sub, R_sub);
-    
+
     sync.registerCallback(
         boost::bind(&StereoProcess::im_pair_callback, &sp, _1, _2));
 
