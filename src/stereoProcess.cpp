@@ -1,6 +1,5 @@
 #include "stereoProcess.hpp"
-//BAD TODO: FIX to be not horribly bad
-#include "trifocalTensor.cpp"
+#include "trifocalTensor.hpp"
 
 #define DRK cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS
 

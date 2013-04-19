@@ -1,14 +1,23 @@
+#include "trifocalTensor.hpp"
 #include <iostream>
 #include <gsl/gsl_poly.h>
 #include <assert.h>
-#include <vector>
 
 #define D(i,j,k) (dets[(i-1)*4+(j-1)*2+(k-1)])
 
-using namespace std;
-using namespace Eigen;
+/*
+ * Computes H (3x3) such that pts = H*[eye(3) [1 1 1]]
+ */
 
-vector<double> computeCoefficients(Matrix3d F1, Matrix3d F2) {
+Matrix3d computeBasisProjection(Matrix<double, 3, 4> pts) {
+    Vector3d v = pts.block<3,3>(0,0).inverse() * pts.block<3,1>(0, 3);
+    Matrix3d d = v.asDiagonal();
+    Matrix3d proj = pts.block<3,3>(0,0)*d;
+    return proj;
+}
+
+
+vector<double> computeLinearFundamentalCoefficients(Matrix3d F1, Matrix3d F2) {
     vector<Matrix3d> srcs;
     srcs.push_back(F1);
     srcs.push_back(F2);
@@ -35,18 +44,6 @@ vector<double> computeCoefficients(Matrix3d F1, Matrix3d F2) {
 	ret.push_back(rets[i]);
     }
     return ret;
-}
-
-Matrix3d computeBasisProjection(Matrix<double, 3, 4> pts) {
-    Vector3d foo = pts.block<3,3>(0,0).inverse() * pts.block<3,1>(0, 3);
-    Vector3d v = foo.col(0);
-    Matrix3d d = v.asDiagonal();
-    Matrix3d bar = pts.block<3,3>(0,0)*d;
-    Matrix<double, 3, 4> id;
-    id << 1, 0, 0, 1,
-          0, 1, 0, 1,
-	  0, 0, 1, 1;
-    return bar;
 }
 
 Matrix<double,1,5> computeFPQRST(Vector3d x_one_hat, Vector3d x_two_hat) {
@@ -113,7 +110,7 @@ vector<vector<Matrix<double, 3, 4> > > computeTensorCandidates(vector<Matrix<dou
     Matrix3d F2;
     Matrix<double, 5, 1> p2 = parts.block<5,1>(0,1);
     F2 << 0, p2(0), p2(1), p2(2), 0, p2(3), p2(4), -(p2(0)+p2(1)+p2(2)+p2(3)+p2(4)), 0;
-    vector<double> roots = computeCoefficients(F1, F2);
+    vector<double> roots = computeLinearFundamentalCoefficients(F1, F2);
     for (int i = 0; i < roots.size(); i++) {
 	if (roots[i] < 0) continue;
 	//cout << "Computing Results for root: " << roots[i] << endl;
