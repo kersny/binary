@@ -96,9 +96,16 @@ int find_kp(std::vector<int> q_idxs, int x) {
 
 class TripleMatches {
     public:
+        static const double kp_weight = 1.0; // weighting for sum of keypoints responses
+        // note in opencv < 2.4.4 keypoint responses will all be 0
+        static const double match_dist_weight = 1.0;
+
         std::vector<cv::KeyPoint> L_kps;
         std::vector<cv::KeyPoint> R_kps;
         std::vector<cv::KeyPoint> P_kps;
+        std::vector<double> weight; 
+            // weight of the triple match is a function of 
+            //  keypoint responses and match distances
 };
 
 void StereoProcess::process_im_pair(const cv::Mat& L_mat,
@@ -157,6 +164,16 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
                         t.L_kps.push_back(L_kps.at(L_kp_1));
                         t.R_kps.push_back(R_kps.at(R_kp));
                         t.P_kps.push_back(P_kps.at(P_kp));
+                        double weight = t.kp_weight * (
+                                            L_kps.at(L_kp_1).response + 
+                                            R_kps.at(R_kp).response +
+                                            P_kps.at(P_kp).response) +
+                                        t.match_dist_weight * (
+                                            LR_matches[i].distance +
+                                            RP_matches.at(RP_kp_i).distance +
+                                            PL_matches.at(PL_kp_i).distance);
+
+                        t.weight.push_back(weight);
                     }
                 }
             }
@@ -182,16 +199,45 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
 	matchPoints.push_back(points2);
 	matchPoints.push_back(points3);
 	std::vector<std::vector<Matrix<double, 3, 4> > > ret = computeTensorCandidates(matchPoints);
-	for (int i = 0; i < ret.size(); i++) {
+	for (uint i = 0; i < ret.size(); i++) {
 	    for (int j = 0; j < 3; j++) {
 		cv::Mat proj, K, R, t;
 		cv::eigen2cv(ret[i][j], proj);
-		cv::decomposeProjectionMatrix(proj, K, R, t);
+	//	cv::decomposeProjectionMatrix(proj, K, R, t);
 		std::cout << K << endl;
 		std::cout << R << endl;
 		std::cout << t << endl;
 	    }
 	}
+
+
+    // homography stuff
+    std::vector<cv::Point2f> L_pts;
+    std::vector<cv::Point2f> R_pts;
+
+    for( uint i = 0; i < t.R_kps.size(); i++ )
+    {
+        //-- Get the keypoints from the good matches
+        L_pts.push_back( t.L_kps[i].pt );
+        R_pts.push_back( t.R_kps[i].pt );
+    }
+    cv::Mat H = cv::findHomography( L_pts, R_pts, CV_RANSAC );
+    std::cout << "\nHomography : \n" << H << "\n";
+
+    cv::Mat L_warped = cv::Mat::zeros(L_mat.rows, L_mat.cols, 16);
+    cv::warpPerspective(L_mat, L_warped, H, L_warped.size());
+
+    cv::Rect tempROI(0, 0, R_mat.cols / 2, R_mat.rows);
+    cv::Mat halfLW(L_warped, tempROI);
+    cv::Mat halfR(R_mat, tempROI);
+    halfR.copyTo(halfLW);
+    
+    cv::Mat L_warped_out;
+    L_warped_out = cv::Mat::zeros(L_warped.rows / 4, L_warped.cols / 4, CV_8UC1);
+    cv::resize(L_warped, L_warped_out, L_warped_out.size());
+    cv::namedWindow("LEFT WARPED", CV_WINDOW_AUTOSIZE);
+    cv::imshow("LEFT WARPED" , L_warped_out);
+
 
         // features / matches of triple matches
         cv::Mat L2_features = extract_features(L_mat, t.L_kps);
