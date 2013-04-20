@@ -21,6 +21,8 @@
 #include <string>
 #include <assert.h>
 
+#include "omp.h"
+
 #include "utilities.hpp"
 
 #define sm sensor_msgs

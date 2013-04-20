@@ -9,3 +9,4 @@ by Kerry Snyder and Neal Bhasin
 - ROS
 - Eigen (should come with ROS)
 - GNU Science Library (Ubuntu: libgsl0-dev)
+- OpenMP

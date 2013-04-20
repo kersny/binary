@@ -96,7 +96,8 @@ int find_kp(std::vector<int> q_idxs, int x) {
 
 class TripleMatches {
     public:
-        static const double kp_weight = 1.0; // weighting for sum of keypoints responses
+        // weighting for sum of keypoints responses
+        static const double kp_weight = 1.0; 
         // note in opencv < 2.4.4 keypoint responses will all be 0
         static const double match_dist_weight = 1.0;
 
@@ -108,6 +109,48 @@ class TripleMatches {
             //  keypoint responses and match distances
 };
 
+// Takes the left and right image, and ordered matching keypoints from each
+//  and produces the stiched together monocular version of the stereo images
+cv::Mat make_mono_image(cv::Mat L_mat, cv::Mat R_mat,
+                      std::vector<cv::KeyPoint> L_kps, 
+                      std::vector<cv::KeyPoint> R_kps)
+{
+    std::vector<cv::Point2f> L_pts;
+    std::vector<cv::Point2f> R_pts;
+
+    for( uint i = 0; i < R_kps.size(); i++ ) {
+        //-- Get the keypoints from the good matches
+        L_pts.push_back( L_kps[i].pt );
+        R_pts.push_back( R_kps[i].pt );
+    }
+    cv::Mat H = cv::findHomography( L_pts, R_pts, CV_RANSAC );
+    std::cout << "\nHomography : \n" << H << "\n";
+
+    cv::Mat L_warped = cv::Mat::zeros(L_mat.rows, L_mat.cols, CV_8UC1);
+    cv::warpPerspective(L_mat, L_warped, H, L_warped.size());
+
+    cv::Mat stiched(L_mat.rows, L_mat.cols, CV_8UC1);
+    int blend_dist = 100; // 1/2 the width of blending area in center
+    cv::Rect L_good_ROI(L_mat.cols / 2 + blend_dist, 0, 
+                        L_mat.cols / 2 - blend_dist, L_mat.rows);
+    cv::Rect R_good_ROI(0, 0, R_mat.cols / 2 - blend_dist, R_mat.rows);
+    cv::Mat partLW = cv::Mat(L_warped, L_good_ROI);
+    cv::Mat partR = cv::Mat(R_mat, R_good_ROI);
+    partLW.copyTo(stiched(L_good_ROI));
+    partR.copyTo(stiched(R_good_ROI));
+
+    cv::Rect blend_ROI(L_mat.cols / 2 - blend_dist, 0, 
+                       2 * blend_dist, L_mat.rows);
+    cv::Mat midLW(L_warped, blend_ROI);
+    cv::Mat midR(R_mat, blend_ROI);
+
+    cv::Mat center_blend(blend_ROI.size(), CV_8UC1);
+    cv::addWeighted( midR, 0.5, midLW, 0.5, 0.0, center_blend);
+    center_blend.copyTo(stiched(blend_ROI));
+
+    return stiched;
+}
+
 void StereoProcess::process_im_pair(const cv::Mat& L_mat,
                                     const cv::Mat& R_mat,
                                     ros::Time t)
@@ -116,12 +159,26 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
     os << "Processing image pair with timestamp: " << t << std::endl;
     debug_print(os.str(), 3);
 
-    std::vector<cv::KeyPoint> L_kps = get_keypoints(L_mat);
-    std::vector<cv::KeyPoint> R_kps = get_keypoints(R_mat);
+    std::vector<cv::KeyPoint> L_kps, R_kps;
+    cv::Mat L_features, R_features;
 
-    cv::Mat L_features = extract_features(L_mat, L_kps);
-    cv::Mat R_features = extract_features(R_mat, R_kps);
-
+    #pragma omp parallel 
+    {
+        #pragma omp sections 
+        {
+            #pragma omp section 
+            {
+                L_kps = get_keypoints(L_mat);
+                L_features = extract_features(L_mat, L_kps);
+            }
+            #pragma omp section 
+            {
+                R_kps = get_keypoints(R_mat);
+                R_features = extract_features(R_mat, R_kps);
+            }
+        }
+    }
+    
     // Do not find triple-matches on first image pair
     //  or if no features found.
     if(P_kps.size() > 0 && L_kps.size() > 0 && R_kps.size() > 0) {
@@ -180,64 +237,41 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
         }
 
         std::cout << "\nT size: " << t.R_kps.size() << "\n";
-	std::vector<Eigen::Matrix<double, 3, 6> > matchPoints;
-	Eigen::Matrix<double, 3, 6> points1;
-	Eigen::Matrix<double, 3, 6> points2;
-	Eigen::Matrix<double, 3, 6> points3;
-	for (int i = 0; i < 6; i++) {
-	    Eigen::Vector3d pt1;
-	    pt1 << t.R_kps[i].pt.x, t.R_kps[i].pt.y, 1;
-	    points1.block<3,1>(0,i) = pt1;
-	    Eigen::Vector3d pt2;
-	    pt2 << t.L_kps[i].pt.x, t.L_kps[i].pt.y, 1;
-	    points2.block<3,1>(0,i) = pt2;
-	    Eigen::Vector3d pt3;
-	    pt3 << t.P_kps[i].pt.x, t.P_kps[i].pt.y, 1;
-	    points3.block<3,1>(0,i) = pt3;
-	}
-	matchPoints.push_back(points1);
-	matchPoints.push_back(points2);
-	matchPoints.push_back(points3);
-	std::vector<std::vector<Matrix<double, 3, 4> > > ret = computeTensorCandidates(matchPoints);
-	for (uint i = 0; i < ret.size(); i++) {
-	    for (int j = 0; j < 3; j++) {
-		cv::Mat proj, K, R, t;
-		cv::eigen2cv(ret[i][j], proj);
-	//	cv::decomposeProjectionMatrix(proj, K, R, t);
-		std::cout << K << endl;
-		std::cout << R << endl;
-		std::cout << t << endl;
-	    }
-	}
+        std::vector<Eigen::Matrix<double, 3, 6> > matchPoints;
+        Eigen::Matrix<double, 3, 6> points1;
+        Eigen::Matrix<double, 3, 6> points2;
+        Eigen::Matrix<double, 3, 6> points3;
+        for (int i = 0; i < 6; i++) {
+            Eigen::Vector3d pt1;
+            pt1 << t.R_kps[i].pt.x, t.R_kps[i].pt.y, 1;
+            points1.block<3,1>(0,i) = pt1;
+            Eigen::Vector3d pt2;
+            pt2 << t.L_kps[i].pt.x, t.L_kps[i].pt.y, 1;
+            points2.block<3,1>(0,i) = pt2;
+            Eigen::Vector3d pt3;
+            pt3 << t.P_kps[i].pt.x, t.P_kps[i].pt.y, 1;
+            points3.block<3,1>(0,i) = pt3;
+        }
+        matchPoints.push_back(points1);
+        matchPoints.push_back(points2);
+        matchPoints.push_back(points3);
+        std::vector<std::vector<Matrix<double, 3, 4> > > ret = computeTensorCandidates(matchPoints);
+        for (uint i = 0; i < ret.size(); i++) {
+            for (int j = 0; j < 3; j++) {
+                cv::Mat proj, K, R, t;
+                cv::eigen2cv(ret[i][j], proj);
+            //    cv::decomposeProjectionMatrix(proj, K, R, t);
+                std::cout << K << endl;
+                std::cout << R << endl;
+                std::cout << t << endl;
+            }
+        }
 
-
-    // homography stuff
-    std::vector<cv::Point2f> L_pts;
-    std::vector<cv::Point2f> R_pts;
-
-    for( uint i = 0; i < t.R_kps.size(); i++ )
-    {
-        //-- Get the keypoints from the good matches
-        L_pts.push_back( t.L_kps[i].pt );
-        R_pts.push_back( t.R_kps[i].pt );
-    }
-    cv::Mat H = cv::findHomography( L_pts, R_pts, CV_RANSAC );
-    std::cout << "\nHomography : \n" << H << "\n";
-
-    cv::Mat L_warped = cv::Mat::zeros(L_mat.rows, L_mat.cols, 16);
-    cv::warpPerspective(L_mat, L_warped, H, L_warped.size());
-
-    cv::Rect tempROI(0, 0, R_mat.cols / 2, R_mat.rows);
-    cv::Mat halfLW(L_warped, tempROI);
-    cv::Mat halfR(R_mat, tempROI);
-    halfR.copyTo(halfLW);
-    
-    cv::Mat L_warped_out;
-    L_warped_out = cv::Mat::zeros(L_warped.rows / 4, L_warped.cols / 4, CV_8UC1);
-    cv::resize(L_warped, L_warped_out, L_warped_out.size());
-    cv::namedWindow("LEFT WARPED", CV_WINDOW_AUTOSIZE);
-    cv::imshow("LEFT WARPED" , L_warped_out);
-
+        cv::Mat stiched = make_mono_image(L_mat, R_mat, t.L_kps, t.R_kps);
+        cv::Mat mono_img(stiched.rows / 4, stiched.cols / 4, CV_8UC1);
+        cv::resize(stiched, mono_img, mono_img.size());
+        cv::namedWindow("MONO IMAGE", CV_WINDOW_AUTOSIZE);
+        cv::imshow("MONO IMAGE" , mono_img);
 
         // features / matches of triple matches
         cv::Mat L2_features = extract_features(L_mat, t.L_kps);

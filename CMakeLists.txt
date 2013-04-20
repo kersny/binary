@@ -27,11 +27,13 @@ include_directories(${GSL_INCLUDE_DIRS})
 rosbuild_add_executable(BINary src/stereoSubscriber.cpp
                                src/stereoProcess.cpp
                                src/utilities.cpp
-			       src/trifocalTensor.cpp)
+                               src/trifocalTensor.cpp)
 
 rosbuild_add_boost_directories()
 rosbuild_link_boost(BINary thread system signals)
 target_link_libraries(BINary ${GSL_LIBRARIES})
+
+rosbuild_add_openmp_flags(BINary)
 
 rosbuild_add_gtest(test/testTrifocalTensor test/testTrifocalTensor.cpp src/trifocalTensor.cpp)
 target_link_libraries(test/testTrifocalTensor ${GSL_LIBRARIES})
