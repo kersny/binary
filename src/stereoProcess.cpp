@@ -1,6 +1,10 @@
 #include "stereoProcess.hpp"
 #include "trifocalTensor.hpp"
 
+#include <rosbag/bag.h>
+#include <rosbag/view.h>
+#include <boost/foreach.hpp>
+
 #define DRK cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS
 
 StereoProcess::StereoProcess()
@@ -178,7 +182,7 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
             }
         }
     }
-    
+
     // Do not find triple-matches on first image pair
     //  or if no features found.
     if(P_kps.size() > 0 && L_kps.size() > 0 && R_kps.size() > 0) {
@@ -333,7 +337,40 @@ int main(int argc, char** argv)
     sync.registerCallback(
         boost::bind(&StereoProcess::im_pair_callback, &sp, _1, _2));
 
-    ros::spin();
+
+    if(argc >= 2) {
+        rosbag::Bag bag;
+        bag.open(argv[1], rosbag::bagmode::Read);
+
+        std::vector<std::string> topics;
+        topics.push_back(std::string(sp.L_channel));
+        topics.push_back(std::string(sp.R_channel));
+
+        rosbag::View view(bag, rosbag::TopicQuery(topics));
+        bool haveL = false;
+        bool haveR = false;
+
+        sm::Image::ConstPtr l_img, r_img;
+
+        BOOST_FOREACH(rosbag::MessageInstance const m, view) {
+            if (m.getTopic() == sp.L_channel) {
+                l_img = m.instantiate<sm::Image>();
+                haveL = true;
+            }
+            if (m.getTopic() == sp.R_channel) {
+                r_img = m.instantiate<sm::Image>();
+                haveR = true;
+            }
+            if(haveL && haveR) {
+                sp.im_pair_callback(l_img, r_img);
+                haveL = haveR = false;
+            }
+        }
+
+        bag.close();
+    } else {
+        ros::spin();
+    }
 
     return 0;
 }
