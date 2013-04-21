@@ -27,7 +27,8 @@ include_directories(${GSL_INCLUDE_DIRS})
 rosbuild_add_executable(BINary src/stereoSubscriber.cpp
                                src/stereoProcess.cpp
                                src/utilities.cpp
-                               src/trifocalTensor.cpp)
+                               src/trifocalTensor.cpp
+                               src/stereoBagParser.cpp)
 
 rosbuild_add_boost_directories()
 rosbuild_link_boost(BINary thread system signals)

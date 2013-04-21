@@ -1,5 +1,6 @@
 #include "stereoProcess.hpp"
 #include "trifocalTensor.hpp"
+#include "stereoBagParser.hpp"
 
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
@@ -337,38 +338,17 @@ int main(int argc, char** argv)
     sync.registerCallback(
         boost::bind(&StereoProcess::im_pair_callback, &sp, _1, _2));
 
-
-    if(argc >= 2) {
-        rosbag::Bag bag;
-        bag.open(argv[1], rosbag::bagmode::Read);
-
+    if(argc >= 2) { // If given a bag file to parse
         std::vector<std::string> topics;
         topics.push_back(std::string(sp.L_channel));
         topics.push_back(std::string(sp.R_channel));
 
-        rosbag::View view(bag, rosbag::TopicQuery(topics));
-        bool haveL = false;
-        bool haveR = false;
-
-        sm::Image::ConstPtr l_img, r_img;
-
-        BOOST_FOREACH(rosbag::MessageInstance const m, view) {
-            if (m.getTopic() == sp.L_channel) {
-                l_img = m.instantiate<sm::Image>();
-                haveL = true;
-            }
-            if (m.getTopic() == sp.R_channel) {
-                r_img = m.instantiate<sm::Image>();
-                haveR = true;
-            }
-            if(haveL && haveR) {
-                sp.im_pair_callback(l_img, r_img);
-                haveL = haveR = false;
-            }
+        StereoBagParser parser = StereoBagParser(argv[1], topics);
+        sm::ImageConstPtr l_img, r_img;
+        while(parser.getNext(l_img, r_img)) {
+            sp.im_pair_callback(l_img, r_img);
         }
-
-        bag.close();
-    } else {
+    } else { // In real-time listening mode
         ros::spin();
     }
 
