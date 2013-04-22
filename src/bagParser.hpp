@@ -10,8 +10,8 @@
 
 class BagParser {
     public:
-        virtual ~BagParser();
-        virtual bool getNext();
+        //virtual ~BagParser();
+        //virtual bool getNext();
 
     protected:
         rosbag::Bag bag;

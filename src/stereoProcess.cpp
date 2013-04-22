@@ -1,6 +1,6 @@
 #include "stereoProcess.hpp"
 #include "trifocalTensor.hpp"
-#include "stereoBagParser.hpp"
+#include "stereoBagParser.cpp"
 
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
@@ -184,6 +184,14 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
         }
     }
 
+    std::cout << "\nL_kps size: " << L_kps.size() << "\n";
+    std::cout << "\nR_kps size: " << R_kps.size() << "\n";
+    std::cout << "\nP_kps size: " << P_kps.size() << "\n";
+
+    std::cout << "\nL_features size: " << L_features.rows << "\n";
+    std::cout << "\nR_features size: " << R_features.rows << "\n";
+    std::cout << "\nP_features size: " << P_features.rows << "\n";
+
     // Do not find triple-matches on first image pair
     //  or if no features found.
     if(P_kps.size() > 0 && L_kps.size() > 0 && R_kps.size() > 0) {
@@ -242,33 +250,38 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
         }
 
         std::cout << "\nT size: " << t.R_kps.size() << "\n";
-        std::vector<Eigen::Matrix<double, 3, 6> > matchPoints;
-        Eigen::Matrix<double, 3, 6> points1;
-        Eigen::Matrix<double, 3, 6> points2;
-        Eigen::Matrix<double, 3, 6> points3;
-        for (int i = 0; i < 6; i++) {
-            Eigen::Vector3d pt1;
-            pt1 << t.R_kps[i].pt.x, t.R_kps[i].pt.y, 1;
-            points1.block<3,1>(0,i) = pt1;
-            Eigen::Vector3d pt2;
-            pt2 << t.L_kps[i].pt.x, t.L_kps[i].pt.y, 1;
-            points2.block<3,1>(0,i) = pt2;
-            Eigen::Vector3d pt3;
-            pt3 << t.P_kps[i].pt.x, t.P_kps[i].pt.y, 1;
-            points3.block<3,1>(0,i) = pt3;
-        }
-        matchPoints.push_back(points1);
-        matchPoints.push_back(points2);
-        matchPoints.push_back(points3);
-        std::vector<std::vector<Matrix<double, 3, 4> > > ret = computeTensorCandidates(matchPoints);
-        for (uint i = 0; i < ret.size(); i++) {
-            for (int j = 0; j < 3; j++) {
-                cv::Mat proj, K, R, t;
-                cv::eigen2cv(ret[i][j], proj);
-            //    cv::decomposeProjectionMatrix(proj, K, R, t);
-                std::cout << K << endl;
-                std::cout << R << endl;
-                std::cout << t << endl;
+        if(t.R_kps.size() >= 6) {
+            std::vector<Eigen::Matrix<double, 3, 6> > matchPoints;
+            Eigen::Matrix<double, 3, 6> points1;
+            Eigen::Matrix<double, 3, 6> points2;
+            Eigen::Matrix<double, 3, 6> points3;
+            for (int i = 0; i < 6; i++) {
+                Eigen::Vector3d pt1;
+                pt1 << t.R_kps[i].pt.x, t.R_kps[i].pt.y, 1;
+                points1.block<3,1>(0,i) = pt1;
+                Eigen::Vector3d pt2;
+                pt2 << t.L_kps[i].pt.x, t.L_kps[i].pt.y, 1;
+                points2.block<3,1>(0,i) = pt2;
+                Eigen::Vector3d pt3;
+                pt3 << t.P_kps[i].pt.x, t.P_kps[i].pt.y, 1;
+                points3.block<3,1>(0,i) = pt3;
+            }
+            matchPoints.push_back(points1);
+            matchPoints.push_back(points2);
+            matchPoints.push_back(points3);
+            std::vector<std::vector<Matrix<double, 3, 4> > > ret = computeTensorCandidates(matchPoints);
+            for (uint i = 0; i < ret.size(); i++) {
+                for (int j = 0; j < 3; j++) {
+                    cv::Mat proj, K, R, t;
+                    cv::eigen2cv(ret[i][j], proj);
+                    cv::Mat innerM = proj.colRange(cv::Range(0,3));
+                    if(cv::determinant(innerM) != 0.0) {
+                        cv::decomposeProjectionMatrix(proj, K, R, t);
+                        std::cout << K << endl;
+                        std::cout << R << endl;
+                        std::cout << t << endl;
+                    }
+                }
             }
         }
 
@@ -316,7 +329,7 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
         cv::waitKey(10);
     }
 
-    P_features = L_features;
+    L_features.copyTo(P_features);
     P_kps = L_kps;
     L_mat.copyTo(P_mat);
 }
