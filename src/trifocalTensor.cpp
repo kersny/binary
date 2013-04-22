@@ -2,6 +2,7 @@
 #include <iostream>
 #include <gsl/gsl_poly.h>
 #include <assert.h>
+#include "utilities.hpp"
 
 #define D(i,j,k) (dets[(i-1)*4+(j-1)*2+(k-1)])
 
@@ -86,7 +87,6 @@ Matrix<double, 3, 4> computeProjection(Matrix<double, 4, 6> world_points, Matrix
 }
 
 vector<vector<Matrix<double, 3, 4> > > computeTensorCandidates(vector<Matrix<double, 3, 6> > pts) {
-    assert(pts.size() == 3);
     vector<vector<Matrix<double, 3, 4> > > ret;
     Matrix<double, 3, 5> foo;
     vector<Matrix<double, 3, 6> > projected_pts;
@@ -156,4 +156,55 @@ vector<vector<Matrix<double, 3, 4> > > computeTensorCandidates(vector<Matrix<dou
 	ret.push_back(projs);
     }
     return ret;
+}
+
+vector<Matrix<double, 3, 4> > computeTensor(vector<cv::Point2f> pts_l, vector<cv::Point2f> pts_r, vector<cv::Point2f> pts_p) {
+    Matrix<double, 3, 6> pts1,pts2,pts3;
+    for (int i = 0; i < 6; i++) {
+	Vector3d ptl;
+	ptl << pts_l[i].x, pts_l[i].y, 1;
+	pts1.block<3,1>(0,i) = ptl;
+	Vector3d ptr;
+	ptr << pts_r[i].x, pts_r[i].y, 1;
+	pts2.block<3,1>(0,i) = ptr;
+	Vector3d ptp;
+	ptp << pts_p[i].x, pts_p[i].y, 1;
+	pts1.block<3,1>(0,i) = ptp;
+    }
+    vector<Matrix<double, 3, 6> > args;
+    args.push_back(pts1);
+    args.push_back(pts2);
+    args.push_back(pts3);
+    vector<vector<Matrix<double, 3, 4> > > possible = computeTensorCandidates(args);
+    int num_solutions = 0;
+    // Iterate through potential solutions
+    for (uint i = 0; i < possible.size(); i++) {
+	// Iterate through cameras L, R, P
+	std::vector<cv::Mat> Ks, Rs, ts;
+	bool cams_valid = true;
+	for (int j = 0; j < 3; j++) {
+	    cv::Mat proj, K, R, t;
+	    cv::eigen2cv(possible[i][j], proj);
+	    cv::Mat innerM = proj.colRange(cv::Range(0,3));
+	    if(cv::determinant(innerM) != 0.0) { // change to throw out solution
+		cv::decomposeProjectionMatrix(proj, K, R, t);
+		Ks.push_back(K);
+		Rs.push_back(R);
+		ts.push_back(t);
+	    } else {
+		cams_valid = false;
+	    }
+	}
+	if(cams_valid) {
+	    // If there are valid solutions for all three cameras
+	    num_solutions++;
+	    std::cout << "\nSolution #" << num_solutions << "\n";
+	    for (int j = 0; j < 3; j++) {
+		std::cout << "K:" << "\n" << ppmd(Ks.at(j)) << "\n";
+		std::cout << "R:" << "\n" << ppmd(Rs.at(j)) << "\n";
+		std::cout << "t:" << "\n" << ppmd(ts.at(j)) << "\n\n";
+	    }
+	}
+    }
+    return possible[0];
 }

@@ -23,8 +23,8 @@ std::vector<cv::KeyPoint> StereoProcess::get_keypoints(cv::Mat img) {
     return kps;
 }
 
-cv::Mat StereoProcess::extract_features(cv::Mat img, 
-                                        std::vector<cv::KeyPoint> kps) 
+cv::Mat StereoProcess::extract_features(cv::Mat img,
+                                        std::vector<cv::KeyPoint> kps)
 {
     // Extract SIFT features
     debug_print("Extracting SIFT features.\n", 3);
@@ -99,22 +99,22 @@ int find_kp(std::vector<int> q_idxs, int x) {
 class TripleMatches {
     public:
         // weighting for sum of keypoints responses
-        static const double kp_weight = 1.0; 
+        static const double kp_weight = 1.0;
         // note in opencv < 2.4.4 keypoint responses will all be 0
         static const double match_dist_weight = 1.0;
 
         std::vector<cv::KeyPoint> L_kps;
         std::vector<cv::KeyPoint> R_kps;
         std::vector<cv::KeyPoint> P_kps;
-        std::vector<double> weight; 
-            // weight of the triple match is a function of 
+        std::vector<double> weight;
+            // weight of the triple match is a function of
             //  keypoint responses and match distances
 };
 
 // Takes the left and right image, and ordered matching keypoints from each
 //  and produces the stiched together monocular version of the stereo images
 cv::Mat make_mono_image(cv::Mat L_mat, cv::Mat R_mat,
-                      std::vector<cv::KeyPoint> L_kps, 
+                      std::vector<cv::KeyPoint> L_kps,
                       std::vector<cv::KeyPoint> R_kps)
 {
     std::vector<cv::Point2f> L_pts;
@@ -133,7 +133,7 @@ cv::Mat make_mono_image(cv::Mat L_mat, cv::Mat R_mat,
 
     cv::Mat stiched(L_mat.rows, L_mat.cols, CV_8UC1);
     int blend_dist = 100; // 1/2 the width of blending area in center
-    cv::Rect L_good_ROI(L_mat.cols / 2 + blend_dist, 0, 
+    cv::Rect L_good_ROI(L_mat.cols / 2 + blend_dist, 0,
                         L_mat.cols / 2 - blend_dist, L_mat.rows);
     cv::Rect R_good_ROI(0, 0, R_mat.cols / 2 - blend_dist, R_mat.rows);
     cv::Mat partLW = cv::Mat(L_warped, L_good_ROI);
@@ -141,7 +141,7 @@ cv::Mat make_mono_image(cv::Mat L_mat, cv::Mat R_mat,
     partLW.copyTo(stiched(L_good_ROI));
     partR.copyTo(stiched(R_good_ROI));
 
-    cv::Rect blend_ROI(L_mat.cols / 2 - blend_dist, 0, 
+    cv::Rect blend_ROI(L_mat.cols / 2 - blend_dist, 0,
                        2 * blend_dist, L_mat.rows);
     cv::Mat midLW(L_warped, blend_ROI);
     cv::Mat midR(R_mat, blend_ROI);
@@ -155,25 +155,25 @@ cv::Mat make_mono_image(cv::Mat L_mat, cv::Mat R_mat,
 
 void StereoProcess::process_im_pair(const cv::Mat& L_mat,
                                     const cv::Mat& R_mat,
-                                    ros::Time t)
+                                    ros::Time time)
 {
     std::ostringstream os;
-    os << "Processing image pair with timestamp: " << t << std::endl;
+    os << "Processing image pair with timestamp: " << time << std::endl;
     debug_print(os.str(), 3);
 
     std::vector<cv::KeyPoint> L_kps, R_kps;
     cv::Mat L_features, R_features;
 
-    #pragma omp parallel 
+    #pragma omp parallel
     {
-        #pragma omp sections 
+        #pragma omp sections
         {
-            #pragma omp section 
+            #pragma omp section
             {
                 L_kps = get_keypoints(L_mat);
                 L_features = extract_features(L_mat, L_kps);
             }
-            #pragma omp section 
+            #pragma omp section
             {
                 R_kps = get_keypoints(R_mat);
                 R_features = extract_features(R_mat, R_kps);
@@ -232,7 +232,7 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
                         t.R_kps.push_back(R_kps.at(R_kp));
                         t.P_kps.push_back(P_kps.at(P_kp));
                         double weight = t.kp_weight * (
-                                            L_kps.at(L_kp_1).response + 
+                                            L_kps.at(L_kp_1).response +
                                             R_kps.at(R_kp).response +
                                             P_kps.at(P_kp).response) +
                                         t.match_dist_weight * (
@@ -248,58 +248,12 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
 
         std::cout << "\nT size: " << t.R_kps.size() << "\n";
         if(t.R_kps.size() >= 6) {
-            std::vector<Eigen::Matrix<double, 3, 6> > matchPoints;
-            Eigen::Matrix<double, 3, 6> points1;
-            Eigen::Matrix<double, 3, 6> points2;
-            Eigen::Matrix<double, 3, 6> points3;
-            for (int i = 0; i < 6; i++) {
-                Eigen::Vector3d pt1;
-                pt1 << t.L_kps[i].pt.x, t.L_kps[i].pt.y, 1;
-                points1.block<3,1>(0,i) = pt1;
-
-                Eigen::Vector3d pt2;
-                pt2 << t.R_kps[i].pt.x, t.R_kps[i].pt.y, 1;
-                points2.block<3,1>(0,i) = pt2;
-
-                Eigen::Vector3d pt3;
-                pt3 << t.P_kps[i].pt.x, t.P_kps[i].pt.y, 1;
-                points3.block<3,1>(0,i) = pt3;
-            }
-            matchPoints.push_back(points1);
-            matchPoints.push_back(points2);
-            matchPoints.push_back(points3);
-            std::vector<std::vector<Matrix<double, 3, 4> > > ret = 
-                computeTensorCandidates(matchPoints);
-            int num_solutions = 0;
-            // Iterate through potential solutions
-            for (uint i = 0; i < ret.size(); i++) {
-                // Iterate through cameras L, R, P
-                std::vector<cv::Mat> Ks, Rs, ts;
-                bool cams_valid = true;
-                for (int j = 0; j < 3; j++) {
-                    cv::Mat proj, K, R, t;
-                    cv::eigen2cv(ret[i][j], proj);
-                    cv::Mat innerM = proj.colRange(cv::Range(0,3));
-                    if(cv::determinant(innerM) != 0.0) { // change to throw out solution
-                        cv::decomposeProjectionMatrix(proj, K, R, t);
-                        Ks.push_back(K);
-                        Rs.push_back(R);
-                        ts.push_back(t);
-                    } else {
-                        cams_valid = false;
-                    }
-                }
-                if(cams_valid) {
-                    // If there are valid solutions for all three cameras
-                    num_solutions++;
-                    std::cout << "\nSolution #" << num_solutions << "\n";
-                    for (int j = 0; j < 3; j++) {
-                        std::cout << "K:" << "\n" << ppmd(Ks.at(j)) << "\n";
-                        std::cout << "R:" << "\n" << ppmd(Rs.at(j)) << "\n";
-                        std::cout << "t:" << "\n" << ppmd(ts.at(j)) << "\n\n";
-                    }
-                }
-            }
+	    std::vector<cv::Point2f> lkps, rkps, pkps;
+	    cv::KeyPoint::convert(t.L_kps, lkps);
+	    cv::KeyPoint::convert(t.R_kps, rkps);
+	    cv::KeyPoint::convert(t.P_kps, pkps);
+            std::vector<Matrix<double, 3, 4> > ret =
+                computeTensor(lkps, rkps, pkps);
         }
 
         cv::Mat stiched = make_mono_image(L_mat, R_mat, t.L_kps, t.R_kps);
@@ -325,6 +279,7 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
         cv::resize(img_matches, matches_small, matches_small.size());
         cv::namedWindow("Matches", CV_WINDOW_AUTOSIZE);
         cv::imshow("Matches" , matches_small);
+        cv::imwrite("Matches.png" , img_matches);
 
         cv::Mat L_out, R_out, P_out;
         cv::drawKeypoints(L_mat, t.L_kps, L_out, cv::Scalar(255, 0, 0), DRK);
@@ -343,6 +298,9 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
         cv::imshow("LEFT" , L_small);
         cv::imshow("RIGHT", R_small);
         cv::imshow("PREV" , P_small);
+        cv::imwrite("left.png" , L_out);
+        cv::imwrite("right.png", R_out);
+        cv::imwrite("prev.png" , P_out);
         cv::waitKey(10);
     }
 
