@@ -13,3 +13,15 @@ void debug_print(std::string str, uint level) {
         std::cout << str;
     }
 }
+
+// Pretty print Mat of doubles
+std::string ppmd(cv::Mat m) {
+    std::stringstream s;
+    for(int i = 0; i < m.rows; i++) {
+        for(int j = 0; j < m.cols; j++) {
+           // s << std::setw(5) << m(i,j);
+        }
+        s << std::endl;
+    }
+    return s.str();
+}

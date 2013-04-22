@@ -111,7 +111,7 @@ vector<vector<Matrix<double, 3, 4> > > computeTensorCandidates(vector<Matrix<dou
     Matrix<double, 5, 1> p2 = parts.block<5,1>(0,1);
     F2 << 0, p2(0), p2(1), p2(2), 0, p2(3), p2(4), -(p2(0)+p2(1)+p2(2)+p2(3)+p2(4)), 0;
     vector<double> roots = computeLinearFundamentalCoefficients(F1, F2);
-    for (int i = 0; i < roots.size(); i++) {
+    for (uint i = 0; i < roots.size(); i++) {
 	if (roots[i] < 0) continue;
 	//cout << "Computing Results for root: " << roots[i] << endl;
 	Matrix3d F = roots[i]*F1 + (1-roots[i])*F2;

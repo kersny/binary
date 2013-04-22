@@ -24,8 +24,7 @@ cv::Mat StereoProcess::im_to_opencv(const sm::ImageConstPtr& img)
     cv_bridge::CvImageConstPtr cv_ptr;
     try {
         cv_ptr = cv_bridge::toCvShare(img, sm::image_encodings::MONO8);
-    }
-    catch (cv_bridge::Exception& e) {
+    } catch (cv_bridge::Exception& e) {
         ROS_ERROR("cv_bridge exception: %s", e.what());
         exit(0);
     }

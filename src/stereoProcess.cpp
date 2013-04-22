@@ -8,15 +8,13 @@
 
 #define DRK cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS
 
-StereoProcess::StereoProcess()
-{
+StereoProcess::StereoProcess() {
     L_channel = "/stereo/left/image_raw";
     R_channel = "/stereo/right/image_raw";
     max_im_pairs = 20;
 }
 
-std::vector<cv::KeyPoint> StereoProcess::get_keypoints(cv::Mat img)
-{
+std::vector<cv::KeyPoint> StereoProcess::get_keypoints(cv::Mat img) {
     // Detect SIFT keypoints in both images
     debug_print("Detecting SIFT keypoints.\n", 3);
     static cv::SiftDescriptorExtractor detector;
@@ -25,7 +23,8 @@ std::vector<cv::KeyPoint> StereoProcess::get_keypoints(cv::Mat img)
     return kps;
 }
 
-cv::Mat StereoProcess::extract_features(cv::Mat img, std::vector<cv::KeyPoint> kps)
+cv::Mat StereoProcess::extract_features(cv::Mat img, 
+                                        std::vector<cv::KeyPoint> kps) 
 {
     // Extract SIFT features
     debug_print("Extracting SIFT features.\n", 3);
@@ -35,8 +34,7 @@ cv::Mat StereoProcess::extract_features(cv::Mat img, std::vector<cv::KeyPoint> k
     return features;
 }
 
-std::vector<cv::DMatch> get_matches(cv::Mat L_features, cv::Mat R_features)
-{
+std::vector<cv::DMatch> get_matches(cv::Mat L_features, cv::Mat R_features) {
     // Find feature matches between two images
     debug_print("Matching SIFT features.\n", 3);
     cv::FlannBasedMatcher matcher;
@@ -76,8 +74,7 @@ std::vector<cv::DMatch> get_matches(cv::Mat L_features, cv::Mat R_features)
 }
 
 // Return the sorted vector of query indeces from a vector of matches
-std::vector<int> get_query_idxs(std::vector<cv::DMatch> matches)
-{
+std::vector<int> get_query_idxs(std::vector<cv::DMatch> matches) {
     std::vector<int> query_idxs;
     query_idxs.reserve(matches.size());
     for(uint i=0; i < matches.size(); i++) {
@@ -184,13 +181,13 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
         }
     }
 
-    std::cout << "\nL_kps size: " << L_kps.size() << "\n";
-    std::cout << "\nR_kps size: " << R_kps.size() << "\n";
-    std::cout << "\nP_kps size: " << P_kps.size() << "\n";
+    std::cout << "L_kps size: " << L_kps.size() << "\n";
+    std::cout << "R_kps size: " << R_kps.size() << "\n";
+    std::cout << "P_kps size: " << P_kps.size() << "\n";
 
-    std::cout << "\nL_features size: " << L_features.rows << "\n";
-    std::cout << "\nR_features size: " << R_features.rows << "\n";
-    std::cout << "\nP_features size: " << P_features.rows << "\n";
+    std::cout << "L_features size: " << L_features.rows << "\n";
+    std::cout << "R_features size: " << R_features.rows << "\n";
+    std::cout << "P_features size: " << P_features.rows << "\n";
 
     // Do not find triple-matches on first image pair
     //  or if no features found.
@@ -257,11 +254,13 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
             Eigen::Matrix<double, 3, 6> points3;
             for (int i = 0; i < 6; i++) {
                 Eigen::Vector3d pt1;
-                pt1 << t.R_kps[i].pt.x, t.R_kps[i].pt.y, 1;
+                pt1 << t.L_kps[i].pt.x, t.L_kps[i].pt.y, 1;
                 points1.block<3,1>(0,i) = pt1;
+
                 Eigen::Vector3d pt2;
-                pt2 << t.L_kps[i].pt.x, t.L_kps[i].pt.y, 1;
+                pt2 << t.R_kps[i].pt.x, t.R_kps[i].pt.y, 1;
                 points2.block<3,1>(0,i) = pt2;
+
                 Eigen::Vector3d pt3;
                 pt3 << t.P_kps[i].pt.x, t.P_kps[i].pt.y, 1;
                 points3.block<3,1>(0,i) = pt3;
@@ -269,17 +268,35 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
             matchPoints.push_back(points1);
             matchPoints.push_back(points2);
             matchPoints.push_back(points3);
-            std::vector<std::vector<Matrix<double, 3, 4> > > ret = computeTensorCandidates(matchPoints);
+            std::vector<std::vector<Matrix<double, 3, 4> > > ret = 
+                computeTensorCandidates(matchPoints);
+            int num_solutions = 0;
+            // Iterate through potential solutions
             for (uint i = 0; i < ret.size(); i++) {
+                // Iterate through cameras L, R, P
+                std::vector<cv::Mat> Ks, Rs, ts;
+                bool cams_valid = true;
                 for (int j = 0; j < 3; j++) {
                     cv::Mat proj, K, R, t;
                     cv::eigen2cv(ret[i][j], proj);
                     cv::Mat innerM = proj.colRange(cv::Range(0,3));
-                    if(cv::determinant(innerM) != 0.0) {
+                    if(cv::determinant(innerM) != 0.0) { // change to throw out solution
                         cv::decomposeProjectionMatrix(proj, K, R, t);
-                        std::cout << K << endl;
-                        std::cout << R << endl;
-                        std::cout << t << endl;
+                        Ks.push_back(K);
+                        Rs.push_back(R);
+                        ts.push_back(t);
+                    } else {
+                        cams_valid = false;
+                    }
+                }
+                if(cams_valid) {
+                    // If there are valid solutions for all three cameras
+                    num_solutions++;
+                    std::cout << "\nSolution #" << num_solutions << "\n";
+                    for (int j = 0; j < 3; j++) {
+                        std::cout << "K:" << "\n" << ppmd(Ks.at(j)) << "\n";
+                        std::cout << "R:" << "\n" << ppmd(Rs.at(j)) << "\n";
+                        std::cout << "t:" << "\n" << ppmd(ts.at(j)) << "\n\n";
                     }
                 }
             }
@@ -334,8 +351,7 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
     L_mat.copyTo(P_mat);
 }
 
-int main(int argc, char** argv)
-{
+int main(int argc, char** argv) {
     ros::init(argc, argv, "BINary");
     ros::NodeHandle nh;
 
