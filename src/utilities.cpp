@@ -14,8 +14,16 @@ void debug_print(std::string str, uint level) {
     }
 }
 
+// Normalize a matrix of doubles to fix one entry to be 1
+cv::Mat norm_by_index(cv::Mat m, int r, int c) {
+    double norm_val = m.at<double>(r,c);
+    cv::Mat normed = m / norm_val;
+    return normed;
+}
+
 // Pretty print Mat of doubles
 std::string ppmd(cv::Mat m) {
+    // Find width needed to fit largest number in matrix
     double abs_max_val = 0.0;
     for(int i = 0; i < m.rows; i++) {
         for(int j = 0; j < m.cols; j++) {
@@ -31,6 +39,7 @@ std::string ppmd(cv::Mat m) {
     else if(abs_max_val >= 100) width = prec + 2 + 4; 
     else width = prec + 2 + 5;
 
+    // Pretty print matrix accordingly
     std::stringstream s;
     s << std::setiosflags(std::ios::fixed);
     s << "[";

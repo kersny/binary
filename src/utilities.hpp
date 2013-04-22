@@ -10,6 +10,7 @@
 #define uint unsigned int
 
 void debug_print(std::string, uint);
-std::string ppmd(cv::Mat m);
+cv::Mat norm_by_index(cv::Mat, int, int);
+std::string ppmd(cv::Mat);
 
 #endif
