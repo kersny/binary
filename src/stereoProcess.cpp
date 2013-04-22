@@ -106,7 +106,7 @@ class TripleMatches {
         std::vector<cv::KeyPoint> L_kps;
         std::vector<cv::KeyPoint> R_kps;
         std::vector<cv::KeyPoint> P_kps;
-        std::vector<double> weight;
+        std::vector<double> weights;
             // weight of the triple match is a function of
             //  keypoint responses and match distances
 };
@@ -152,6 +152,13 @@ cv::Mat make_mono_image(cv::Mat L_mat, cv::Mat R_mat,
 
     return stiched;
 }
+
+
+typedef std::pair<int,int> intpair;
+bool pair_comp( const intpair& l, const intpair& r) { 
+    return l.first < r.first;
+}
+
 
 void StereoProcess::process_im_pair(const cv::Mat& L_mat,
                                     const cv::Mat& R_mat,
@@ -231,22 +238,36 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
                         t.L_kps.push_back(L_kps.at(L_kp_1));
                         t.R_kps.push_back(R_kps.at(R_kp));
                         t.P_kps.push_back(P_kps.at(P_kp));
-                        double weight = t.kp_weight * (
-                                            L_kps.at(L_kp_1).response +
-                                            R_kps.at(R_kp).response +
-                                            P_kps.at(P_kp).response) +
-                                        t.match_dist_weight * (
+                        // keypoint weight doesn't work in opencv 2.4.2 
+                        //   also might be negative weight
+                        // double weight = t.kp_weight * (
+                        //                     L_kps.at(L_kp_1).response +
+                        //                     R_kps.at(R_kp).response +
+                        //                     P_kps.at(P_kp).response) +
+                        double weight = t.match_dist_weight * (
                                             LR_matches[i].distance +
                                             RP_matches.at(RP_kp_i).distance +
                                             PL_matches.at(PL_kp_i).distance);
 
-                        t.weight.push_back(weight);
+                        t.weights.push_back(weight);
                     }
                 }
             }
         }
 
+        // Sort triple-matches by weight
+        std::vector<intpair> indexed_weights;
+        for(uint i = 0 ; i < t.weights.size() ; i++) {
+            intpair cur_pair = std::make_pair(i,t.weights.at(i));
+            indexed_weights.push_back(cur_pair);
+        }
+        std::sort(indexed_weights.begin(), 
+                  indexed_weights.end(), 
+                  pair_comp);
+        // End sort of triple-matches by weight
+
         std::cout << "\nT size: " << t.R_kps.size() << "\n";
+        
         if(t.R_kps.size() >= 6) {
             std::vector<cv::Point2f> lkps, rkps, pkps;
             cv::KeyPoint::convert(t.L_kps, lkps);
