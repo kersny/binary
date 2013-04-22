@@ -17,12 +17,14 @@ void debug_print(std::string str, uint level) {
 // Pretty print Mat of doubles
 std::string ppmd(cv::Mat m) {
     std::stringstream s;
+    s << std::setiosflags(std::ios::fixed);
     s << "[";
     for(int i = 0; i < m.rows; i++) {
-        s << " ";
+        if(i > 0) s << " ";
         for(int j = 0; j < m.cols; j++) {
-            s << std::setw(5) << m.at<double>(i,j);
-            s << " , ";
+            s << std::setw(7) << std::setprecision(4) << m.at<double>(i,j);
+            if(j < m.cols-1) s << " , ";
+            else s << " ; ";
         }
         s << std::endl;
     }

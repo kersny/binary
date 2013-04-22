@@ -248,10 +248,10 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
 
         std::cout << "\nT size: " << t.R_kps.size() << "\n";
         if(t.R_kps.size() >= 6) {
-	    std::vector<cv::Point2f> lkps, rkps, pkps;
-	    cv::KeyPoint::convert(t.L_kps, lkps);
-	    cv::KeyPoint::convert(t.R_kps, rkps);
-	    cv::KeyPoint::convert(t.P_kps, pkps);
+            std::vector<cv::Point2f> lkps, rkps, pkps;
+            cv::KeyPoint::convert(t.L_kps, lkps);
+            cv::KeyPoint::convert(t.R_kps, rkps);
+            cv::KeyPoint::convert(t.P_kps, pkps);
             std::vector<Matrix<double, 3, 4> > ret =
                 computeTensor(lkps, rkps, pkps);
         }
