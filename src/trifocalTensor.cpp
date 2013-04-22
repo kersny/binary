@@ -158,7 +158,35 @@ vector<vector<Matrix<double, 3, 4> > > computeTensorCandidates(vector<Matrix<dou
     return ret;
 }
 
-vector<Matrix<double, 3, 4> > computeTensor(vector<cv::Point2f> pts_l, vector<cv::Point2f> pts_r, vector<cv::Point2f> pts_p) {
+
+typedef std::pair<int,int> intpair;
+bool pair_comp( const intpair& l, const intpair& r) {
+    return l.second < r.second;
+}
+
+vector<Matrix<double, 3, 4> > computeTensor(TripleMatches t) {
+    // Sort triple-matches by weight
+    std::vector<intpair> indexed_weights;
+    for(uint i = 0 ; i < t.weights.size() ; i++) {
+	intpair cur_pair = std::make_pair(i,t.weights.at(i));
+	indexed_weights.push_back(cur_pair);
+    }
+    std::sort(indexed_weights.begin(),
+	      indexed_weights.end(),
+	      pair_comp);
+    // End sort of triple-matches by weight
+
+    std::cout << "\nT size: " << t.R_kps.size() << "\n";
+
+    std::vector<cv::Point2f> pts_l, pts_r, pts_p;
+    for (int i = 0; i < 6; i++) {
+	pts_l.push_back(t.L_kps[indexed_weights[i].first].pt);
+	pts_r.push_back(t.R_kps[indexed_weights[i].first].pt);
+	pts_p.push_back(t.P_kps[indexed_weights[i].first].pt);
+    }
+    //cv::KeyPoint::convert(t.L_kps, lkps);
+    //cv::KeyPoint::convert(t.R_kps, rkps);
+    //cv::KeyPoint::convert(t.P_kps, pkps);
     Matrix<double, 3, 6> pts1,pts2,pts3;
     for (int i = 0; i < 6; i++) {
 	Vector3d ptl;
@@ -169,7 +197,7 @@ vector<Matrix<double, 3, 4> > computeTensor(vector<cv::Point2f> pts_l, vector<cv
 	pts2.block<3,1>(0,i) = ptr;
 	Vector3d ptp;
 	ptp << pts_p[i].x, pts_p[i].y, 1;
-	pts1.block<3,1>(0,i) = ptp;
+	pts3.block<3,1>(0,i) = ptp;
     }
     vector<Matrix<double, 3, 6> > args;
     args.push_back(pts1);
@@ -180,7 +208,7 @@ vector<Matrix<double, 3, 4> > computeTensor(vector<cv::Point2f> pts_l, vector<cv
     // Iterate through potential solutions
     for (uint i = 0; i < possible.size(); i++) {
 	// Iterate through cameras L, R, P
-	std::vector<cv::Mat> Ks, Rs, ts;
+	std::vector<cv::Mat> projs, Ks, Rs, ts;
 	bool cams_valid = true;
 	for (int j = 0; j < 3; j++) {
 	    cv::Mat proj, K, R, t;
@@ -191,11 +219,24 @@ vector<Matrix<double, 3, 4> > computeTensor(vector<cv::Point2f> pts_l, vector<cv
 		Ks.push_back(K);
 		Rs.push_back(R);
 		ts.push_back(t);
+		projs.push_back(proj);
 	    } else {
 		cams_valid = false;
 	    }
 	}
 	if(cams_valid) {
+	    /*
+	    cv::Mat outp;
+	    cv::Mat lp,rp;
+	    for (int i = 0; i < pts_l.size(); i++) {
+		lp.at<double>(i, 1) = pts_l[i].x;
+		lp.at<double>(i, 2) = pts_l[i].y;
+		rp.at<double>(i, 1) = pts_r[i].x;
+		rp.at<double>(i, 2) = pts_r[i].y;
+	    }
+	    cv::triangulatePoints(projs[0], projs[1], lp, rp, outp);
+	    cout << outp << endl;
+	    */
 	    // If there are valid solutions for all three cameras
 	    num_solutions++;
 	    std::cout << "\nSolution #" << num_solutions << "\n";

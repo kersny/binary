@@ -5,6 +5,7 @@
 #include <vector>
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/eigen.hpp>
+#include "stereoProcess.hpp"
 
 using namespace std;
 using namespace Eigen;
@@ -15,7 +16,7 @@ Matrix<double,1,5> computeFPQRST(Vector3d x_one_hat, Vector3d x_two_hat);
 Matrix3d matFromCameraPoint(Vector3d camera_point);
 Matrix<double, 3, 4> matFromWorldPoint(Vector4d world_point);
 Matrix<double, 3, 4> computeProjection(Matrix<double, 4, 6> world_points, Matrix<double, 3, 6> camera_pts);
-vector<Matrix<double, 3, 4> > computeTensor(vector<cv::Point2f> pts_r, vector<cv::Point2f> pts_l, vector<cv::Point2f> pts_p);
+vector<Matrix<double, 3, 4> > computeTensor(TripleMatches m);
 vector<vector<Matrix<double, 3, 4> > > computeTensorCandidates(vector<Matrix<double, 3, 6> > pts);
 
 #endif // TRIFOCAL_TENSOR

@@ -96,20 +96,6 @@ int find_kp(std::vector<int> q_idxs, int x) {
     }
 }
 
-class TripleMatches {
-    public:
-        // weighting for sum of keypoints responses
-        static const double kp_weight = 1.0;
-        // note in opencv < 2.4.4 keypoint responses will all be 0
-        static const double match_dist_weight = 1.0;
-
-        std::vector<cv::KeyPoint> L_kps;
-        std::vector<cv::KeyPoint> R_kps;
-        std::vector<cv::KeyPoint> P_kps;
-        std::vector<double> weights;
-            // weight of the triple match is a function of
-            //  keypoint responses and match distances
-};
 
 // Takes the left and right image, and ordered matching keypoints from each
 //  and produces the stiched together monocular version of the stereo images
@@ -151,12 +137,6 @@ cv::Mat make_mono_image(cv::Mat L_mat, cv::Mat R_mat,
     center_blend.copyTo(stiched(blend_ROI));
 
     return stiched;
-}
-
-
-typedef std::pair<int,int> intpair;
-bool pair_comp( const intpair& l, const intpair& r) { 
-    return l.first < r.first;
 }
 
 
@@ -238,7 +218,7 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
                         t.L_kps.push_back(L_kps.at(L_kp_1));
                         t.R_kps.push_back(R_kps.at(R_kp));
                         t.P_kps.push_back(P_kps.at(P_kp));
-                        // keypoint weight doesn't work in opencv 2.4.2 
+                        // keypoint weight doesn't work in opencv 2.4.2
                         //   also might be negative weight
                         // double weight = t.kp_weight * (
                         //                     L_kps.at(L_kp_1).response +
@@ -254,28 +234,7 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
                 }
             }
         }
-
-        // Sort triple-matches by weight
-        std::vector<intpair> indexed_weights;
-        for(uint i = 0 ; i < t.weights.size() ; i++) {
-            intpair cur_pair = std::make_pair(i,t.weights.at(i));
-            indexed_weights.push_back(cur_pair);
-        }
-        std::sort(indexed_weights.begin(), 
-                  indexed_weights.end(), 
-                  pair_comp);
-        // End sort of triple-matches by weight
-
-        std::cout << "\nT size: " << t.R_kps.size() << "\n";
-        
-        if(t.R_kps.size() >= 6) {
-            std::vector<cv::Point2f> lkps, rkps, pkps;
-            cv::KeyPoint::convert(t.L_kps, lkps);
-            cv::KeyPoint::convert(t.R_kps, rkps);
-            cv::KeyPoint::convert(t.P_kps, pkps);
-            std::vector<Matrix<double, 3, 4> > ret =
-                computeTensor(lkps, rkps, pkps);
-        }
+	(void)computeTensor(t);
 
         cv::Mat stiched = make_mono_image(L_mat, R_mat, t.L_kps, t.R_kps);
         cv::Mat mono_img(stiched.rows / 4, stiched.cols / 4, CV_8UC1);

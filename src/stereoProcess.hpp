@@ -48,4 +48,19 @@ class StereoProcess {
         void process_im_pair(const cv::Mat&, const cv::Mat&, ros::Time);
 };
 
+class TripleMatches {
+    public:
+        // weighting for sum of keypoints responses
+        static const double kp_weight = 1.0;
+        // note in opencv < 2.4.4 keypoint responses will all be 0
+        static const double match_dist_weight = 1.0;
+
+        std::vector<cv::KeyPoint> L_kps;
+        std::vector<cv::KeyPoint> R_kps;
+        std::vector<cv::KeyPoint> P_kps;
+        std::vector<double> weights;
+            // weight of the triple match is a function of
+            //  keypoint responses and match distances
+};
+
 #endif
