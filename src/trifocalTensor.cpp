@@ -51,11 +51,11 @@ vector<double> computeLinearFundamentalCoefficients(Matrix3d F1, Matrix3d F2) {
 Matrix<double,1,5> computeFPQRST(Vector3d x_one_hat, Vector3d x_two_hat) {
     Matrix<double,1,5> ret;
     ret <<
-	x_one_hat(1)*x_two_hat(0) - x_one_hat(1)*x_two_hat(2),
-	x_one_hat(2)*x_two_hat(0) - x_one_hat(1)*x_two_hat(2),
-	x_one_hat(0)*x_two_hat(1) - x_one_hat(1)*x_two_hat(2),
-	x_one_hat(2)*x_two_hat(1) - x_one_hat(1)*x_two_hat(2),
-	x_one_hat(0)*x_two_hat(2) - x_one_hat(1)*x_two_hat(2);
+	x_one_hat(0)*x_two_hat(1) - x_one_hat(2)*x_two_hat(1),
+	x_one_hat(0)*x_two_hat(2) - x_one_hat(2)*x_two_hat(1),
+	x_one_hat(1)*x_two_hat(0) - x_one_hat(2)*x_two_hat(1),
+	x_one_hat(1)*x_two_hat(2) - x_one_hat(2)*x_two_hat(1),
+	x_one_hat(2)*x_two_hat(0) - x_one_hat(2)*x_two_hat(1);
     return ret;
 }
 
@@ -181,8 +181,9 @@ vector<Matrix<double, 3, 4> > computeTensor(TripleMatches t) {
     //
     double min_error = INFINITY;
     vector<cv::Mat> solution;
+    vector<Matrix<double, 3, 6> > chosen;
 
-    for (int i = 0; i < 100; i++) {
+    for (int i = 0; i < 500; i++) {
 	std::vector<cv::Point2f> pts_l, pts_r, pts_p;
 
 	vector<intpair> selection(indexed_weights);
@@ -237,23 +238,35 @@ vector<Matrix<double, 3, 4> > computeTensor(TripleMatches t) {
 		cv::Mat outp(4, pts_l.size(), CV_64F);
 		cv::Mat lp(2, pts_l.size(), CV_64F);
 		cv::Mat rp(2, pts_r.size(), CV_64F);
+		cv::Mat pp(2, pts_p.size(), CV_64F);
 		for (int i = 0; i < pts_l.size(); i++) {
 		    lp.at<double>(0, i) = pts_l[i].x;
 		    lp.at<double>(1, i) = pts_l[i].y;
 		    rp.at<double>(0, i) = pts_r[i].x;
 		    rp.at<double>(1, i) = pts_r[i].y;
+		    pp.at<double>(0, i) = pts_p[i].x;
+		    pp.at<double>(1, i) = pts_p[i].y;
 		}
 		cv::triangulatePoints(projs[0], projs[1], lp, rp, outp);
 		double total_error = 0;
 		for (int i = 0; i < outp.cols; i++) {
-		    cv::Mat real_point = norm_by_index(projs[0]*outp.col(i), 2, 0);
-		    cv::Mat err = real_point.rowRange(0,2) - lp.col(i);
+		    cv::Mat real_point = norm_by_index(projs[2]*outp.col(i), 2, 0);
+		    cv::Mat err = real_point.rowRange(0,2) - pp.col(i);
 		    total_error += (abs(err.at<double>(0,0)) + abs(err.at<double>(1,2)));
 		}
 		if (total_error < min_error) {
 		    min_error = total_error;
 		    solution.assign(projs.begin(), projs.end());
+		    chosen.assign(args.begin(), args.end());
 		}
+		/*
+		cv::Mat Kn = norm_by_index(Ks.at(0),2,2);
+		if (abs(Kn.at<double>(0,1)) < min_error) {
+		    min_error = abs(Kn.at<double>(0,1));
+		    solution.assign(projs.begin(), projs.end());
+		    chosen.assign(args.begin(), args.end());
+		}
+		*/
 		// If there are valid solutions for all three cameras
 		num_solutions++;
 		//std::cout << "\nSolution #" << num_solutions << "\n";
@@ -266,7 +279,6 @@ vector<Matrix<double, 3, 4> > computeTensor(TripleMatches t) {
 	}
     }
     // Return empty result while debugging
-    cout << min_error << endl;
     vector<Matrix<double, 3, 4> > ret;
     for (int i = 0; i < 3; i++) {
 	Matrix<double, 3, 4> toadd;
