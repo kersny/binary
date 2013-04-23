@@ -189,7 +189,7 @@ vector<Matrix<double, 3, 4> > computeTensor(TripleMatches t) {
 	vector<intpair> selection(indexed_weights);
 	std::random_shuffle(selection.begin(), selection.end());
 
-	for (int i = 0; i < selection.size(); i++) {
+	for (uint i = 0; i < selection.size(); i++) {
 	    pts_l.push_back(t.L_kps[selection[i].first].pt);
 	    pts_r.push_back(t.R_kps[selection[i].first].pt);
 	    pts_p.push_back(t.P_kps[selection[i].first].pt);
@@ -239,7 +239,7 @@ vector<Matrix<double, 3, 4> > computeTensor(TripleMatches t) {
 		cv::Mat lp(2, pts_l.size(), CV_64F);
 		cv::Mat rp(2, pts_r.size(), CV_64F);
 		cv::Mat pp(2, pts_p.size(), CV_64F);
-		for (int i = 0; i < pts_l.size(); i++) {
+		for (uint i = 0; i < pts_l.size(); i++) {
 		    lp.at<double>(0, i) = pts_l[i].x;
 		    lp.at<double>(1, i) = pts_l[i].y;
 		    rp.at<double>(0, i) = pts_r[i].x;
