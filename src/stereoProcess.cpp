@@ -264,29 +264,15 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
         cv::drawMatches(L_mat, t.L_kps, R_mat, t.R_kps,
                         LR2_matches, img_matches, cv::Scalar::all(-1), cv::Scalar::all(-1),
                         std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
-        cv::Mat matches_small;
-        matches_small = cv::Mat::zeros(img_matches.rows / 3, img_matches.cols / 3, 16);
-        cv::resize(img_matches, matches_small, matches_small.size());
-        cv::namedWindow("Matches", CV_WINDOW_AUTOSIZE);
-        cv::imshow("Matches" , matches_small);
+        sized_show(img_matches, 0.25, "MATCHES");
 
         cv::Mat L_out, R_out, P_out;
         cv::drawKeypoints(L_mat, t.L_kps, L_out, cv::Scalar(255, 0, 0), DRK);
         cv::drawKeypoints(R_mat, t.R_kps, R_out, cv::Scalar(255, 0, 0), DRK);
         cv::drawKeypoints(P_mat, t.P_kps, P_out, cv::Scalar(255, 0, 0), DRK);
-        cv::Mat L_small, R_small, P_small;
-        L_small = cv::Mat::zeros(L_out.rows / 4, L_out.cols / 4, CV_8UC1);
-        R_small = cv::Mat::zeros(R_out.rows / 4, R_out.cols / 4, CV_8UC1);
-        P_small = cv::Mat::zeros(P_out.rows / 4, P_out.cols / 4, CV_8UC1);
-        cv::resize(L_out, L_small, L_small.size());
-        cv::resize(R_out, R_small, R_small.size());
-        cv::resize(P_out, P_small, P_small.size());
-        cv::namedWindow("LEFT",  CV_WINDOW_AUTOSIZE);
-        cv::namedWindow("RIGHT", CV_WINDOW_AUTOSIZE);
-        cv::namedWindow("PREV", CV_WINDOW_AUTOSIZE);
-        cv::imshow("LEFT" , L_small);
-        cv::imshow("RIGHT", R_small);
-        cv::imshow("PREV" , P_small);
+        sized_show(L_out, 0.25, "LEFT");
+        sized_show(R_out, 0.25, "RIGHT");
+        sized_show(P_out, 0.25, "PREV");
         cv::waitKey(10);
     }
 
