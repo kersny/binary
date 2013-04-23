@@ -4,6 +4,7 @@
 #include <assert.h>
 #include "utilities.hpp"
 #include "RandomSample.hpp"
+#include <algorithm>
 
 #define D(i,j,k) (dets[(i-1)*4+(j-1)*2+(k-1)])
 
@@ -182,11 +183,10 @@ vector<Matrix<double, 3, 4> > computeTensor(TripleMatches t) {
     for (int i = 0; i < 100; i++) {
 	std::vector<cv::Point2f> pts_l, pts_r, pts_p;
 
-	vector<intpair> selection(6);
-	RandomSample(indexed_weights.begin(), indexed_weights.end(),
-		     selection.begin(), selection.end());
+	vector<intpair> selection(indexed_weights);
+	std::random_shuffle(selection.begin(), selection.end());
 
-	for (int i = 0; i < 6; i++) {
+	for (int i = 0; i < selection.size(); i++) {
 	    pts_l.push_back(t.L_kps[selection[i].first].pt);
 	    pts_r.push_back(t.R_kps[selection[i].first].pt);
 	    pts_p.push_back(t.P_kps[selection[i].first].pt);
@@ -232,7 +232,7 @@ vector<Matrix<double, 3, 4> > computeTensor(TripleMatches t) {
 		}
 	    }
 	    if(cams_valid) {
-		cv::Mat outp;
+		cv::Mat outp(4, pts_l.size(), CV_64F);
 		cv::Mat lp(2, pts_l.size(), CV_64F);
 		cv::Mat rp(2, pts_r.size(), CV_64F);
 		for (int i = 0; i < pts_l.size(); i++) {
@@ -242,17 +242,21 @@ vector<Matrix<double, 3, 4> > computeTensor(TripleMatches t) {
 		    rp.at<double>(1, i) = pts_r[i].y;
 		}
 		cv::triangulatePoints(projs[0], projs[1], lp, rp, outp);
-		std::cout << outp << std::endl;
+		int count = 0;
 		for (int j = 0; j < outp.cols; j++) {
-		    //cout << norm_by_index(outp.col(j), 3, 0) << endl;
+		    cv::Mat real_point = norm_by_index(outp.col(j), 3, 0);
+		    if (real_point.at<double>(2,1) > 0) {
+			count++;
+		    }
 		}
+		cout << count << endl;
 		// If there are valid solutions for all three cameras
 		num_solutions++;
-		std::cout << "\nSolution #" << num_solutions << "\n";
+		//std::cout << "\nSolution #" << num_solutions << "\n";
 		for (int j = 0; j < 3; j++) {
-		    std::cout << "K:" << "\n" << ppmd(Ks.at(j)) << "\n";
-		    std::cout << "R:" << "\n" << ppmd(Rs.at(j)) << "\n";
-		    std::cout << "t:" << "\n" << ppmd(ts.at(j)) << "\n\n";
+		    //std::cout << "K:" << "\n" << ppmd(Ks.at(j)) << "\n";
+		    //std::cout << "R:" << "\n" << ppmd(Rs.at(j)) << "\n";
+		    //std::cout << "t:" << "\n" << ppmd(ts.at(j)) << "\n\n";
 		}
 	    }
 	}
