@@ -21,6 +21,13 @@ cv::Mat norm_by_index(cv::Mat m, int r, int c) {
     return normed;
 }
 
+void sized_show(cv::Mat img, double size_mult, std::string window_name) {
+    cv::Mat resized_img = 
+        cv::Mat::zeros(img.rows * size_mult, img.cols * size_mult, img.type());
+    cv::resize(img, resized_img, resized_img.size());
+    cv::imshow(window_name, resized_img);
+}
+
 // Pretty print Mat of doubles
 std::string ppmd(cv::Mat m) {
     // Find width needed to fit largest number in matrix

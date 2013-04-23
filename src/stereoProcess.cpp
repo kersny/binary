@@ -250,10 +250,7 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
         }
 
         cv::Mat stiched = make_mono_image(L_mat, R_mat, t.L_kps, t.R_kps);
-        cv::Mat mono_img(stiched.rows / 4, stiched.cols / 4, CV_8UC1);
-        cv::resize(stiched, mono_img, mono_img.size());
-        cv::namedWindow("MONO IMAGE", CV_WINDOW_AUTOSIZE);
-        cv::imshow("MONO IMAGE" , mono_img);
+        sized_show(stiched, 0.25, "MONO IMAGE");
 
         // features / matches of triple matches
         cv::Mat L2_features = extract_features(L_mat, t.L_kps);

@@ -11,6 +11,7 @@
 
 void debug_print(std::string, uint);
 cv::Mat norm_by_index(cv::Mat, int, int);
+void sized_show(cv::Mat, double, std::string);
 std::string ppmd(cv::Mat);
 
 #endif
