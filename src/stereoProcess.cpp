@@ -5,6 +5,7 @@
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
 #include <boost/foreach.hpp>
+#include <set>
 
 #define DRK cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS
 
@@ -17,7 +18,7 @@ StereoProcess::StereoProcess() {
 std::vector<cv::KeyPoint> StereoProcess::get_keypoints(cv::Mat img) {
     // Detect SIFT keypoints in both images
     debug_print("Detecting SIFT keypoints.\n", 3);
-    static cv::SiftDescriptorExtractor detector;
+    static cv::SurfFeatureDetector detector;
     std::vector<cv::KeyPoint> kps;
     detector.detect(img, kps);
     return kps;
@@ -28,7 +29,7 @@ cv::Mat StereoProcess::extract_features(cv::Mat img,
 {
     // Extract SIFT features
     debug_print("Extracting SIFT features.\n", 3);
-    static cv::SiftDescriptorExtractor extractor;
+    static cv::SurfDescriptorExtractor extractor;
     cv::Mat features;
     extractor.compute(img, kps, features );
     return features;
@@ -138,7 +139,6 @@ cv::Mat make_mono_image(cv::Mat L_mat, cv::Mat R_mat,
 
     return stiched;
 }
-
 
 void StereoProcess::process_im_pair(const cv::Mat& L_mat,
                                     const cv::Mat& R_mat,

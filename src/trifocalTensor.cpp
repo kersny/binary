@@ -225,18 +225,20 @@ vector<Matrix<double, 3, 4> > computeTensor(TripleMatches t) {
 	    }
 	}
 	if(cams_valid) {
-	    /*
 	    cv::Mat outp;
-	    cv::Mat lp,rp;
+	    cv::Mat lp(2, pts_l.size(), CV_64F);
+	    cv::Mat rp(2, pts_r.size(), CV_64F);
 	    for (int i = 0; i < pts_l.size(); i++) {
-		lp.at<double>(i, 1) = pts_l[i].x;
-		lp.at<double>(i, 2) = pts_l[i].y;
-		rp.at<double>(i, 1) = pts_r[i].x;
-		rp.at<double>(i, 2) = pts_r[i].y;
+		lp.at<double>(0, i) = pts_l[i].x;
+		lp.at<double>(1, i) = pts_l[i].y;
+		rp.at<double>(0, i) = pts_r[i].x;
+		rp.at<double>(1, i) = pts_r[i].y;
 	    }
 	    cv::triangulatePoints(projs[0], projs[1], lp, rp, outp);
-	    cout << outp << endl;
-	    */
+	    std::cout << outp << std::endl;
+	    for (int j = 0; j < outp.cols; j++) {
+		//cout << norm_by_index(outp.col(j), 3, 0) << endl;
+	    }
 	    // If there are valid solutions for all three cameras
 	    num_solutions++;
 	    std::cout << "\nSolution #" << num_solutions << "\n";
@@ -247,5 +249,7 @@ vector<Matrix<double, 3, 4> > computeTensor(TripleMatches t) {
 	    }
 	}
     }
-    return possible[0];
+    // Return empty result while debugging
+    vector<Matrix<double, 3, 4> > empty;
+    return empty;
 }
