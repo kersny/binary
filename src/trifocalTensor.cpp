@@ -165,6 +165,50 @@ bool pair_comp( const intpair& l, const intpair& r) {
     return l.second < r.second;
 }
 
+// Returns whether or not 3 points are approximately collinear
+bool are_collinear(std::vector<cv::Point2f> pts) {
+    assert(pts.size() == 3);
+    double dist_threshold = 10.0;
+
+    double min_dist = INFINITY;
+    double x1,y1,x2,y2,x3,y3;
+    // Consider distance from each point to line formed by other 2 points
+    for(int i = 0; i < 3; i++) {
+        x1 = pts.at((i+1) % 3).x;
+        y1 = pts.at((i+1) % 3).y;
+        x2 = pts.at((i+2) % 3).x;
+        y2 = pts.at((i+2) % 3).y;
+        x3 = pts.at(i).x;
+        y3 = pts.at(i).y;
+
+        double a = (y1 - y2);
+        double b = (x2 - x1);
+        double c = (x1*y2 - x2*y1);
+        double dist = abs(a*x3 + b*y3 + c) / sqrt(a*a + b*b);
+
+        if(dist < min_dist)
+            min_dist = dist;
+    }
+    if(min_dist <= dist_threshold)
+        return true;
+    else
+        return false;
+}
+
+// Returns true if some 3 of given 4 points are collinear
+bool are_some_3_collinear(std::vector<cv::Point2f> pts) {
+    assert(pts.size() == 4);
+    for(int i = 0; i < 4; i++) {
+        std::vector<cv::Point2f> three_pts;
+        three_pts.push_back(pts.at((i+1) % 4));
+        three_pts.push_back(pts.at((i+2) % 4));
+        three_pts.push_back(pts.at((i+3) % 4));
+        if(are_collinear(three_pts))
+            return true;
+    }
+    return false;
+}
+
 vector<Matrix<double, 3, 4> > computeTensor(TripleMatches t) {
     // Sort triple-matches by weight
     std::vector<intpair> indexed_weights;
@@ -183,6 +227,8 @@ vector<Matrix<double, 3, 4> > computeTensor(TripleMatches t) {
     vector<cv::Mat> solution;
     vector<Matrix<double, 3, 6> > chosen;
 
+    //int num_degenerate = 0;
+
     for (int i = 0; i < 500; i++) {
 	std::vector<cv::Point2f> pts_l, pts_r, pts_p;
 
@@ -194,6 +240,23 @@ vector<Matrix<double, 3, 4> > computeTensor(TripleMatches t) {
 	    pts_r.push_back(t.R_kps[selection[i].first].pt);
 	    pts_p.push_back(t.P_kps[selection[i].first].pt);
 	}
+
+        std::vector<cv::Point2f> subl = 
+                std::vector<cv::Point2f>(pts_l.begin(), pts_l.begin()+4);
+        std::vector<cv::Point2f> subr = 
+                std::vector<cv::Point2f>(pts_r.begin(), pts_r.begin()+4);
+        std::vector<cv::Point2f> subp = 
+                std::vector<cv::Point2f>(pts_p.begin(), pts_p.begin()+4);
+
+        bool degenerate = 
+            are_some_3_collinear(subl) || 
+            are_some_3_collinear(subr) || 
+            are_some_3_collinear(subp);
+        if(degenerate) continue; // Skip this selection if degenerate case
+
+        //if(degenerate) num_degenerate++;
+
+
 	//cv::KeyPoint::convert(t.L_kps, lkps);
 	//cv::KeyPoint::convert(t.R_kps, rkps);
 	//cv::KeyPoint::convert(t.P_kps, pkps);
@@ -278,7 +341,7 @@ vector<Matrix<double, 3, 4> > computeTensor(TripleMatches t) {
 	    }
 	}
     }
-    // Return empty result while debugging
+
     vector<Matrix<double, 3, 4> > ret;
     for (int i = 0; i < 3; i++) {
 	Matrix<double, 3, 4> toadd;
