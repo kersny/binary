@@ -18,7 +18,7 @@ StereoProcess::StereoProcess() {
 std::vector<cv::KeyPoint> StereoProcess::get_keypoints(cv::Mat img) {
     // Detect SIFT keypoints in both images
     debug_print("Detecting SIFT keypoints.\n", 3);
-    static cv::SurfFeatureDetector detector;
+    static cv::SiftFeatureDetector detector;
     std::vector<cv::KeyPoint> kps;
     detector.detect(img, kps);
     return kps;
@@ -29,7 +29,7 @@ cv::Mat StereoProcess::extract_features(cv::Mat img,
 {
     // Extract SIFT features
     debug_print("Extracting SIFT features.\n", 3);
-    static cv::SurfDescriptorExtractor extractor;
+    static cv::SiftDescriptorExtractor extractor;
     cv::Mat features;
     extractor.compute(img, kps, features );
     return features;
@@ -239,9 +239,9 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
 	    cv::Mat proj, K, R, t;
 	    cv::eigen2cv(solution[j], proj);
 	    cv::decomposeProjectionMatrix(proj, K, R, t);
-	    std::cout << "K:" << "\n" << ppmd(K) << "\n";
+	    std::cout << "K:" << "\n" << ppmd(norm_by_index(K,2,2)) << "\n";
 	    std::cout << "R:" << "\n" << ppmd(R) << "\n";
-	    std::cout << "t:" << "\n" << ppmd(t) << "\n\n";
+	    std::cout << "t:" << "\n" << ppmd(norm_by_index(t,3,0)) << "\n\n";
 	}
 
 	cv::Mat stiched = make_mono_image(L_mat, R_mat, t.L_kps, t.R_kps);
@@ -267,7 +267,6 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
         cv::resize(img_matches, matches_small, matches_small.size());
         cv::namedWindow("Matches", CV_WINDOW_AUTOSIZE);
         cv::imshow("Matches" , matches_small);
-        cv::imwrite("Matches.png" , img_matches);
 
         cv::Mat L_out, R_out, P_out;
         cv::drawKeypoints(L_mat, t.L_kps, L_out, cv::Scalar(255, 0, 0), DRK);
@@ -286,9 +285,6 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
         cv::imshow("LEFT" , L_small);
         cv::imshow("RIGHT", R_small);
         cv::imshow("PREV" , P_small);
-        cv::imwrite("left.png" , L_out);
-        cv::imwrite("right.png", R_out);
-        cv::imwrite("prev.png" , P_out);
         cv::waitKey(10);
     }
 
