@@ -9,6 +9,8 @@
 
 #define DRK cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS
 
+std::string feature_type = "SURF"; // options: "SIFT", "SURF", etc
+
 StereoProcess::StereoProcess() {
     L_channel = "/stereo/left/image_raw";
     R_channel = "/stereo/right/image_raw";
@@ -16,11 +18,10 @@ StereoProcess::StereoProcess() {
 }
 
 std::vector<cv::KeyPoint> StereoProcess::get_keypoints(cv::Mat img) {
-    // Detect SIFT keypoints in both images
-    debug_print("Detecting SIFT keypoints.\n", 3);
-    //static cv::SurfFeatureDetector detector;
-    cv::Ptr<cv::FeatureDetector> detector = 
-        cv::Algorithm::create<cv::FeatureDetector>("Feature2D.SURF");
+    // Detect keypoints in both images
+    debug_print("Detecting keypoints.\n", 3);
+    cv::Ptr<cv::FeatureDetector> detector;
+    detector = cv::FeatureDetector::create(feature_type);
     std::vector<cv::KeyPoint> kps;
     detector->detect(img, kps);
     return kps;
@@ -29,17 +30,18 @@ std::vector<cv::KeyPoint> StereoProcess::get_keypoints(cv::Mat img) {
 cv::Mat StereoProcess::extract_features(cv::Mat img,
                                         std::vector<cv::KeyPoint> kps)
 {
-    // Extract SIFT features
-    debug_print("Extracting SIFT features.\n", 3);
-    static cv::SurfDescriptorExtractor extractor;
+    // Extract features
+    debug_print("Extracting features.\n", 3);
     cv::Mat features;
-    extractor.compute(img, kps, features );
+    cv::Ptr<cv::DescriptorExtractor> extractor;
+    extractor = cv::DescriptorExtractor::create(feature_type);
+    extractor->compute(img, kps, features);
     return features;
 }
 
 std::vector<cv::DMatch> get_matches(cv::Mat L_features, cv::Mat R_features) {
     // Find feature matches between two images
-    debug_print("Matching SIFT features.\n", 3);
+    debug_print("Matching features.\n", 3);
     cv::FlannBasedMatcher matcher;
     std::vector<cv::DMatch> matches;
     matcher.match(L_features, R_features, matches);
@@ -301,15 +303,9 @@ int main(int argc, char** argv) {
 
     StereoProcess sp;
 
-    mf::Subscriber<sm::Image> L_sub(nh, sp.L_channel, 1);
-    mf::Subscriber<sm::Image> R_sub(nh, sp.R_channel, 1);
+    cv::initModule_nonfree(); // stallman hates me
 
-    typedef mf::sync_policies::ApproximateTime<sm::Image, sm::Image> MySyncPolicy;
-    mf::Synchronizer<MySyncPolicy> sync( \
-        MySyncPolicy(sp.max_im_pairs), L_sub, R_sub);
-
-    sync.registerCallback(
-        boost::bind(&StereoProcess::im_pair_callback, &sp, _1, _2));
+    std::cout << "\nInitialized program, using " << feature_type << " features.\n";
 
     if(argc >= 2) { // If given a bag file to parse
         std::vector<std::string> topics;
@@ -321,7 +317,15 @@ int main(int argc, char** argv) {
         while(ros::ok() && parser.getNext(l_img, r_img)) {
             sp.im_pair_callback(l_img, r_img);
         }
-    } else { // In real-time listening mode
+    } else { // In real-time listening mode using subscribers
+        mf::Subscriber<sm::Image> L_sub(nh, sp.L_channel, 1);
+        mf::Subscriber<sm::Image> R_sub(nh, sp.R_channel, 1);
+        typedef mf::sync_policies::ApproximateTime<sm::Image, sm::Image> MySyncPolicy;
+        mf::Synchronizer<MySyncPolicy> sync( \
+            MySyncPolicy(sp.max_im_pairs), L_sub, R_sub);
+        sync.registerCallback(
+            boost::bind(&StereoProcess::im_pair_callback, &sp, _1, _2));
+
         ros::spin();
     }
 

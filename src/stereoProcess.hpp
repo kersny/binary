@@ -17,6 +17,7 @@
 #include <opencv2/core/eigen.hpp>
 
 #include <opencv2/nonfree/features2d.hpp>
+#include <opencv2/nonfree/nonfree.hpp>
 
 #include <string>
 #include <assert.h>
