@@ -40,7 +40,7 @@ class StereoBagParser : public BagParser {
             l_ptr = l_img;
             r_ptr = r_img;
             haveL = haveR = false;
-            std::cout << "Parsed image pair. \n";
+            std::cout << "\n\nParsed image pair. \n";
             return true;
         }
 

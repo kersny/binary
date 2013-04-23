@@ -18,9 +18,11 @@ StereoProcess::StereoProcess() {
 std::vector<cv::KeyPoint> StereoProcess::get_keypoints(cv::Mat img) {
     // Detect SIFT keypoints in both images
     debug_print("Detecting SIFT keypoints.\n", 3);
-    static cv::SurfFeatureDetector detector;
+    //static cv::SurfFeatureDetector detector;
+    cv::Ptr<cv::FeatureDetector> detector = 
+        cv::Algorithm::create<cv::FeatureDetector>("Feature2D.SURF");
     std::vector<cv::KeyPoint> kps;
-    detector.detect(img, kps);
+    detector->detect(img, kps);
     return kps;
 }
 
@@ -113,7 +115,7 @@ cv::Mat make_mono_image(cv::Mat L_mat, cv::Mat R_mat,
         R_pts.push_back( R_kps[i].pt );
     }
     cv::Mat H = cv::findHomography( L_pts, R_pts, CV_RANSAC );
-    std::cout << "\nHomography : \n" << H << "\n";
+    std::cout << "\nHomography : \n" << ppmd(H) << "\n";
 
     cv::Mat L_warped = cv::Mat::zeros(L_mat.rows, L_mat.cols, CV_8UC1);
     cv::warpPerspective(L_mat, L_warped, H, L_warped.size());
@@ -320,7 +322,7 @@ int main(int argc, char** argv) {
 
         StereoBagParser parser = StereoBagParser(argv[1], topics);
         sm::ImageConstPtr l_img, r_img;
-        while(parser.getNext(l_img, r_img)) {
+        while(ros::ok() && parser.getNext(l_img, r_img)) {
             sp.im_pair_callback(l_img, r_img);
         }
     } else { // In real-time listening mode
