@@ -234,9 +234,17 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
                 }
             }
         }
-	(void)computeTensor(t);
+	std::vector<Eigen::Matrix<double, 3, 4> > solution = computeTensor(t);
+	for (int j = 0; j < 3; j++) {
+	    cv::Mat proj, K, R, t;
+	    cv::eigen2cv(solution[j], proj);
+	    cv::decomposeProjectionMatrix(proj, K, R, t);
+	    std::cout << "K:" << "\n" << ppmd(K) << "\n";
+	    std::cout << "R:" << "\n" << ppmd(R) << "\n";
+	    std::cout << "t:" << "\n" << ppmd(t) << "\n\n";
+	}
 
-        cv::Mat stiched = make_mono_image(L_mat, R_mat, t.L_kps, t.R_kps);
+	cv::Mat stiched = make_mono_image(L_mat, R_mat, t.L_kps, t.R_kps);
         cv::Mat mono_img(stiched.rows / 4, stiched.cols / 4, CV_8UC1);
         cv::resize(stiched, mono_img, mono_img.size());
         cv::namedWindow("MONO IMAGE", CV_WINDOW_AUTOSIZE);

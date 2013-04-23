@@ -3,7 +3,6 @@
 #include <gsl/gsl_poly.h>
 #include <assert.h>
 #include "utilities.hpp"
-#include "RandomSample.hpp"
 #include <algorithm>
 
 #define D(i,j,k) (dets[(i-1)*4+(j-1)*2+(k-1)])
@@ -178,7 +177,10 @@ vector<Matrix<double, 3, 4> > computeTensor(TripleMatches t) {
 	      pair_comp);
     // End sort of triple-matches by weight
 
-    std::cout << "\nT size: " << t.R_kps.size() << "\n";
+    //std::cout << "\nT size: " << t.R_kps.size() << "\n";
+    //
+    double min_error = INFINITY;
+    vector<cv::Mat> solution;
 
     for (int i = 0; i < 100; i++) {
 	std::vector<cv::Point2f> pts_l, pts_r, pts_p;
@@ -242,14 +244,16 @@ vector<Matrix<double, 3, 4> > computeTensor(TripleMatches t) {
 		    rp.at<double>(1, i) = pts_r[i].y;
 		}
 		cv::triangulatePoints(projs[0], projs[1], lp, rp, outp);
-		int count = 0;
-		for (int j = 0; j < outp.cols; j++) {
-		    cv::Mat real_point = norm_by_index(outp.col(j), 3, 0);
-		    if (real_point.at<double>(2,1) > 0) {
-			count++;
-		    }
+		double total_error = 0;
+		for (int i = 0; i < outp.cols; i++) {
+		    cv::Mat real_point = norm_by_index(projs[0]*outp.col(i), 2, 0);
+		    cv::Mat err = real_point.rowRange(0,2) - lp.col(i);
+		    total_error += (abs(err.at<double>(0,0)) + abs(err.at<double>(1,2)));
 		}
-		cout << count << endl;
+		if (total_error < min_error) {
+		    min_error = total_error;
+		    solution.assign(projs.begin(), projs.end());
+		}
 		// If there are valid solutions for all three cameras
 		num_solutions++;
 		//std::cout << "\nSolution #" << num_solutions << "\n";
@@ -262,6 +266,12 @@ vector<Matrix<double, 3, 4> > computeTensor(TripleMatches t) {
 	}
     }
     // Return empty result while debugging
-    vector<Matrix<double, 3, 4> > empty;
-    return empty;
+    cout << min_error << endl;
+    vector<Matrix<double, 3, 4> > ret;
+    for (int i = 0; i < 3; i++) {
+	Matrix<double, 3, 4> toadd;
+	cv::cv2eigen(solution[i], toadd);
+	ret.push_back(toadd);
+    }
+    return ret;
 }
