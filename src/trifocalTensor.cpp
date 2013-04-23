@@ -3,6 +3,7 @@
 #include <gsl/gsl_poly.h>
 #include <assert.h>
 #include "utilities.hpp"
+#include "RandomSample.hpp"
 
 #define D(i,j,k) (dets[(i-1)*4+(j-1)*2+(k-1)])
 
@@ -178,74 +179,81 @@ vector<Matrix<double, 3, 4> > computeTensor(TripleMatches t) {
 
     std::cout << "\nT size: " << t.R_kps.size() << "\n";
 
-    std::vector<cv::Point2f> pts_l, pts_r, pts_p;
-    for (int i = 0; i < 6; i++) {
-	pts_l.push_back(t.L_kps[indexed_weights[i].first].pt);
-	pts_r.push_back(t.R_kps[indexed_weights[i].first].pt);
-	pts_p.push_back(t.P_kps[indexed_weights[i].first].pt);
-    }
-    //cv::KeyPoint::convert(t.L_kps, lkps);
-    //cv::KeyPoint::convert(t.R_kps, rkps);
-    //cv::KeyPoint::convert(t.P_kps, pkps);
-    Matrix<double, 3, 6> pts1,pts2,pts3;
-    for (int i = 0; i < 6; i++) {
-	Vector3d ptl;
-	ptl << pts_l[i].x, pts_l[i].y, 1;
-	pts1.block<3,1>(0,i) = ptl;
-	Vector3d ptr;
-	ptr << pts_r[i].x, pts_r[i].y, 1;
-	pts2.block<3,1>(0,i) = ptr;
-	Vector3d ptp;
-	ptp << pts_p[i].x, pts_p[i].y, 1;
-	pts3.block<3,1>(0,i) = ptp;
-    }
-    vector<Matrix<double, 3, 6> > args;
-    args.push_back(pts1);
-    args.push_back(pts2);
-    args.push_back(pts3);
-    vector<vector<Matrix<double, 3, 4> > > possible = computeTensorCandidates(args);
-    int num_solutions = 0;
-    // Iterate through potential solutions
-    for (uint i = 0; i < possible.size(); i++) {
-	// Iterate through cameras L, R, P
-	std::vector<cv::Mat> projs, Ks, Rs, ts;
-	bool cams_valid = true;
-	for (int j = 0; j < 3; j++) {
-	    cv::Mat proj, K, R, t;
-	    cv::eigen2cv(possible[i][j], proj);
-	    cv::Mat innerM = proj.colRange(cv::Range(0,3));
-	    if(cv::determinant(innerM) != 0.0) { // change to throw out solution
-		cv::decomposeProjectionMatrix(proj, K, R, t);
-		Ks.push_back(K);
-		Rs.push_back(R);
-		ts.push_back(t);
-		projs.push_back(proj);
-	    } else {
-		cams_valid = false;
-	    }
+    for (int i = 0; i < 100; i++) {
+	std::vector<cv::Point2f> pts_l, pts_r, pts_p;
+
+	vector<intpair> selection(6);
+	RandomSample(indexed_weights.begin(), indexed_weights.end(),
+		     selection.begin(), selection.end());
+
+	for (int i = 0; i < 6; i++) {
+	    pts_l.push_back(t.L_kps[selection[i].first].pt);
+	    pts_r.push_back(t.R_kps[selection[i].first].pt);
+	    pts_p.push_back(t.P_kps[selection[i].first].pt);
 	}
-	if(cams_valid) {
-	    cv::Mat outp;
-	    cv::Mat lp(2, pts_l.size(), CV_64F);
-	    cv::Mat rp(2, pts_r.size(), CV_64F);
-	    for (int i = 0; i < pts_l.size(); i++) {
-		lp.at<double>(0, i) = pts_l[i].x;
-		lp.at<double>(1, i) = pts_l[i].y;
-		rp.at<double>(0, i) = pts_r[i].x;
-		rp.at<double>(1, i) = pts_r[i].y;
-	    }
-	    cv::triangulatePoints(projs[0], projs[1], lp, rp, outp);
-	    std::cout << outp << std::endl;
-	    for (int j = 0; j < outp.cols; j++) {
-		//cout << norm_by_index(outp.col(j), 3, 0) << endl;
-	    }
-	    // If there are valid solutions for all three cameras
-	    num_solutions++;
-	    std::cout << "\nSolution #" << num_solutions << "\n";
+	//cv::KeyPoint::convert(t.L_kps, lkps);
+	//cv::KeyPoint::convert(t.R_kps, rkps);
+	//cv::KeyPoint::convert(t.P_kps, pkps);
+	Matrix<double, 3, 6> pts1,pts2,pts3;
+	for (int i = 0; i < 6; i++) {
+	    Vector3d ptl;
+	    ptl << pts_l[i].x, pts_l[i].y, 1;
+	    pts1.block<3,1>(0,i) = ptl;
+	    Vector3d ptr;
+	    ptr << pts_r[i].x, pts_r[i].y, 1;
+	    pts2.block<3,1>(0,i) = ptr;
+	    Vector3d ptp;
+	    ptp << pts_p[i].x, pts_p[i].y, 1;
+	    pts3.block<3,1>(0,i) = ptp;
+	}
+	vector<Matrix<double, 3, 6> > args;
+	args.push_back(pts1);
+	args.push_back(pts2);
+	args.push_back(pts3);
+	vector<vector<Matrix<double, 3, 4> > > possible = computeTensorCandidates(args);
+	int num_solutions = 0;
+	// Iterate through potential solutions
+	for (uint i = 0; i < possible.size(); i++) {
+	    // Iterate through cameras L, R, P
+	    std::vector<cv::Mat> projs, Ks, Rs, ts;
+	    bool cams_valid = true;
 	    for (int j = 0; j < 3; j++) {
-		std::cout << "K:" << "\n" << ppmd(Ks.at(j)) << "\n";
-		std::cout << "R:" << "\n" << ppmd(Rs.at(j)) << "\n";
-		std::cout << "t:" << "\n" << ppmd(ts.at(j)) << "\n\n";
+		cv::Mat proj, K, R, t;
+		cv::eigen2cv(possible[i][j], proj);
+		cv::Mat innerM = proj.colRange(cv::Range(0,3));
+		if(cv::determinant(innerM) != 0.0) { // change to throw out solution
+		    cv::decomposeProjectionMatrix(proj, K, R, t);
+		    Ks.push_back(K);
+		    Rs.push_back(R);
+		    ts.push_back(t);
+		    projs.push_back(proj);
+		} else {
+		    cams_valid = false;
+		}
+	    }
+	    if(cams_valid) {
+		cv::Mat outp;
+		cv::Mat lp(2, pts_l.size(), CV_64F);
+		cv::Mat rp(2, pts_r.size(), CV_64F);
+		for (int i = 0; i < pts_l.size(); i++) {
+		    lp.at<double>(0, i) = pts_l[i].x;
+		    lp.at<double>(1, i) = pts_l[i].y;
+		    rp.at<double>(0, i) = pts_r[i].x;
+		    rp.at<double>(1, i) = pts_r[i].y;
+		}
+		cv::triangulatePoints(projs[0], projs[1], lp, rp, outp);
+		std::cout << outp << std::endl;
+		for (int j = 0; j < outp.cols; j++) {
+		    //cout << norm_by_index(outp.col(j), 3, 0) << endl;
+		}
+		// If there are valid solutions for all three cameras
+		num_solutions++;
+		std::cout << "\nSolution #" << num_solutions << "\n";
+		for (int j = 0; j < 3; j++) {
+		    std::cout << "K:" << "\n" << ppmd(Ks.at(j)) << "\n";
+		    std::cout << "R:" << "\n" << ppmd(Rs.at(j)) << "\n";
+		    std::cout << "t:" << "\n" << ppmd(ts.at(j)) << "\n\n";
+		}
 	    }
 	}
     }
