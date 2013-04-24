@@ -36,7 +36,9 @@ target_link_libraries(BINary ${GSL_LIBRARIES})
 
 rosbuild_add_openmp_flags(BINary)
 
-rosbuild_add_gtest(test/testTrifocalTensor test/testTrifocalTensor.cpp src/trifocalTensor.cpp)
+rosbuild_add_gtest(test/testTrifocalTensor test/testTrifocalTensor.cpp 
+                                           src/trifocalTensor.cpp
+                                           src/utilities.cpp)
 target_link_libraries(test/testTrifocalTensor ${GSL_LIBRARIES})
 
 #common commands for building c++ executables and libraries

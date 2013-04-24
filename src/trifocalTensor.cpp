@@ -166,9 +166,8 @@ bool pair_comp( const intpair& l, const intpair& r) {
 }
 
 // Returns whether or not 3 points are approximately collinear
-bool are_collinear(std::vector<cv::Point2f> pts) {
+bool are_collinear(std::vector<cv::Point2f> pts, double dist_threshold) {
     assert(pts.size() == 3);
-    double dist_threshold = 10.0;
 
     double min_dist = INFINITY;
     double x1,y1,x2,y2,x3,y3;
@@ -195,15 +194,19 @@ bool are_collinear(std::vector<cv::Point2f> pts) {
         return false;
 }
 
-// Returns true if some 3 of given 4 points are collinear
 bool are_some_3_collinear(std::vector<cv::Point2f> pts) {
+    return are_some_3_collinear(pts, 10.0);
+}
+
+// Returns true if some 3 of given 4 points are collinear
+bool are_some_3_collinear(std::vector<cv::Point2f> pts, double dist_threshold) {
     assert(pts.size() == 4);
     for(int i = 0; i < 4; i++) {
         std::vector<cv::Point2f> three_pts;
         three_pts.push_back(pts.at((i+1) % 4));
         three_pts.push_back(pts.at((i+2) % 4));
         three_pts.push_back(pts.at((i+3) % 4));
-        if(are_collinear(three_pts))
+        if(are_collinear(three_pts, dist_threshold))
             return true;
     }
     return false;

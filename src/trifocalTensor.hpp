@@ -19,4 +19,8 @@ Matrix<double, 3, 4> computeProjection(Matrix<double, 4, 6> world_points, Matrix
 vector<Matrix<double, 3, 4> > computeTensor(TripleMatches m);
 vector<vector<Matrix<double, 3, 4> > > computeTensorCandidates(vector<Matrix<double, 3, 6> > pts);
 
+bool are_collinear(std::vector<cv::Point2f> pts, double dist_threshold);
+bool are_some_3_collinear(std::vector<cv::Point2f> pts, double dist_threshold);
+bool are_some_3_collinear(std::vector<cv::Point2f> pts);
+
 #endif // TRIFOCAL_TENSOR
