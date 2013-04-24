@@ -222,13 +222,12 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
                         t.L_kps.push_back(L_kps.at(L_kp_1));
                         t.R_kps.push_back(R_kps.at(R_kp));
                         t.P_kps.push_back(P_kps.at(P_kp));
-                        // keypoint weight doesn't work in opencv 2.4.2
-                        //   also might be negative weight
-                        // double weight = t.kp_weight * (
-                        //                     L_kps.at(L_kp_1).response +
-                        //                     R_kps.at(R_kp).response +
-                        //                     P_kps.at(P_kp).response) +
-                        double weight = t.match_dist_weight * (
+
+                        double weight = t.kp_weight * (
+                                            L_kps.at(L_kp_1).response +
+                                            R_kps.at(R_kp).response +
+                                            P_kps.at(P_kp).response) +
+                                        t.match_dist_weight * (
                                             LR_matches[i].distance +
                                             RP_matches.at(RP_kp_i).distance +
                                             PL_matches.at(PL_kp_i).distance);

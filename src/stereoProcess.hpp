@@ -51,9 +51,9 @@ class StereoProcess {
 
 class TripleMatches {
     public:
-        // weighting for sum of keypoints responses
-        static const double kp_weight = 1.0;
-        // note in opencv < 2.4.4 keypoint responses will all be 0
+        // weighting for sum of keypoints responses (higher is better)
+        static const double kp_weight = -0.0005;
+        // note in opencv < 2.4.4 keypoint responses for SIFT will all be 0
         static const double match_dist_weight = 1.0;
 
         std::vector<cv::KeyPoint> L_kps;
