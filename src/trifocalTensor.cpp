@@ -232,7 +232,7 @@ vector<Matrix<double, 3, 4> > computeTensor(TripleMatches t) {
 
     //int num_degenerate = 0;
 
-    for (int i = 0; i < 500; i++) {
+    for (int i = 0; i < 100; i++) {
 	std::vector<cv::Point2f> pts_l, pts_r, pts_p;
 
 	vector<intpair> selection(indexed_weights);
@@ -244,16 +244,16 @@ vector<Matrix<double, 3, 4> > computeTensor(TripleMatches t) {
 	    pts_p.push_back(t.P_kps[selection[i].first].pt);
 	}
 
-        std::vector<cv::Point2f> subl = 
-                std::vector<cv::Point2f>(pts_l.begin(), pts_l.begin()+4);
-        std::vector<cv::Point2f> subr = 
-                std::vector<cv::Point2f>(pts_r.begin(), pts_r.begin()+4);
-        std::vector<cv::Point2f> subp = 
-                std::vector<cv::Point2f>(pts_p.begin(), pts_p.begin()+4);
+        std::vector<cv::Point2f> subl =
+                std::vector<cv::Point2f>(pts_l.begin()+2, pts_l.begin()+6);
+        std::vector<cv::Point2f> subr =
+                std::vector<cv::Point2f>(pts_r.begin()+2, pts_r.begin()+6);
+        std::vector<cv::Point2f> subp =
+                std::vector<cv::Point2f>(pts_p.begin()+2, pts_p.begin()+6);
 
-        bool degenerate = 
-            are_some_3_collinear(subl) || 
-            are_some_3_collinear(subr) || 
+        bool degenerate =
+            are_some_3_collinear(subl) ||
+            are_some_3_collinear(subr) ||
             are_some_3_collinear(subp);
         if(degenerate) continue; // Skip this selection if degenerate case
 
@@ -314,6 +314,17 @@ vector<Matrix<double, 3, 4> > computeTensor(TripleMatches t) {
 		    pp.at<double>(1, i) = pts_p[i].y;
 		}
 		cv::triangulatePoints(projs[0], projs[1], lp, rp, outp);
+		int errcnt = 0;
+		//cout << outp.cols << " ";
+		for (int i = 0; i < outp.cols; i++) {
+		    cv::Mat td = outp.col(i)/outp.col(i).at<double>(3,0);
+		    //cout << td << endl;
+		    if (td.at<double>(2,0) < 0) {
+			errcnt++;
+		    }
+		}
+		//cout << errcnt << endl;
+		//if (errcnt > 100) continue;
 		double total_error = 0;
 		for (int i = 0; i < outp.cols; i++) {
 		    cv::Mat real_point = norm_by_index(projs[2]*outp.col(i), 2, 0);
@@ -327,8 +338,8 @@ vector<Matrix<double, 3, 4> > computeTensor(TripleMatches t) {
 		}
 		/*
 		cv::Mat Kn = norm_by_index(Ks.at(0),2,2);
-		if (abs(Kn.at<double>(0,1)) < min_error) {
-		    min_error = abs(Kn.at<double>(0,1));
+		if (abs(Kn.at<double>(0,0)-Kn.at<double>(1,1)) < min_error) {
+		    min_error = abs(Kn.at<double>(0,0)-Kn.at<double>(1,1));
 		    solution.assign(projs.begin(), projs.end());
 		    chosen.assign(args.begin(), args.end());
 		}
@@ -336,11 +347,6 @@ vector<Matrix<double, 3, 4> > computeTensor(TripleMatches t) {
 		// If there are valid solutions for all three cameras
 		num_solutions++;
 		//std::cout << "\nSolution #" << num_solutions << "\n";
-		for (int j = 0; j < 3; j++) {
-		    //std::cout << "K:" << "\n" << ppmd(Ks.at(j)) << "\n";
-		    //std::cout << "R:" << "\n" << ppmd(Rs.at(j)) << "\n";
-		    //std::cout << "t:" << "\n" << ppmd(ts.at(j)) << "\n\n";
-		}
 	    }
 	}
     }
@@ -348,6 +354,7 @@ vector<Matrix<double, 3, 4> > computeTensor(TripleMatches t) {
     vector<Matrix<double, 3, 4> > ret;
     for (int i = 0; i < 3; i++) {
 	Matrix<double, 3, 4> toadd;
+	cout << chosen[i] << endl;
 	cv::cv2eigen(solution[i], toadd);
 	ret.push_back(toadd);
     }
