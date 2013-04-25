@@ -30,11 +30,11 @@ rosbuild_add_executable(BINary src/stereoSubscriber.cpp
                                src/trifocalTensor.cpp
                                src/stereoBagParser.cpp)
 
-rosbuild_add_executable(bintest src/trifocalTensor.cpp
-				src/utilities.cpp
-				src/single_test.cpp)
+# rosbuild_add_executable(bintest src/trifocalTensor.cpp
+# 				src/utilities.cpp)
+# 				src/single_test.cpp)
 
-target_link_libraries(bintest ${GSL_LIBRARIES})
+# target_link_libraries(bintest ${GSL_LIBRARIES})
 
 rosbuild_add_boost_directories()
 rosbuild_link_boost(BINary thread system signals)

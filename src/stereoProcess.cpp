@@ -275,8 +275,8 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
 	int iterations = 100;
 	bool optimizingPnP = true;
 	cv::Mat world_points_f(t.P_kps.size(), 3, CV_32FC1);
-	for (int i = 0; i < 3; i++) {
-	    for (int j = 0; j < t.P_kps.size(); j++) {
+	for (uint i = 0; i < 3; i++) {
+	    for (uint j = 0; j < t.P_kps.size(); j++) {
 		world_points_f.at<float>(j,i) = (float)outp.at<double>(i,j);
 	    }
 	}
