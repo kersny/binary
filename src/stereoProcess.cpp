@@ -244,6 +244,8 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
 	cv::Mat Pl = Kl * (cv::Mat_<double>(3,4) << 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
 	//cv::Mat Pr = Kl * (cv::Mat_<double>(3,4) << 1.0, -0.0073, -0.0016, -554.3483, 0.0073, 0.9998, -0.0188, -0.4350, 0.0017, 0.0187, 0.9998, -0.7893);
 	cv::Mat Pr = Kl * (cv::Mat_<double>(3,4) << 1.0, 0.0, 0.0, 0.5543483, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
+	cv::Mat Ldist_coeff = (cv::Mat_<double>(1,4) << -0.0306, 0.053, 0.0020, 0.0014);
+	cv::Mat Rdist_coeff = (cv::Mat_<double>(1,4) << -0.0243, 0.0448, 0.0027, 0.0023);
 	cv::Mat outp(4, t.L_kps.size(), CV_64F);
 	cv::Mat lp(2, t.L_kps.size(), CV_64F);
 	cv::Mat rp(2, t.R_kps.size(), CV_64F);
@@ -256,6 +258,8 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
 	    pp.at<float>(i, 0) = t.P_kps[i].pt.x;
 	    pp.at<float>(i, 1) = t.P_kps[i].pt.y;
 	}
+	cv::undistortPoints(lp, lp, Kl, Ldist_coeff);
+	cv::undistortPoints(rp, rp, Kr, Rdist_coeff);
 	cv::triangulatePoints(Pl, Pr, lp, rp, outp);
 	/*
 	for (int i = 0; i < outp.cols; i++) {
@@ -270,7 +274,6 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
 	    t.P_kps.push_back( t.P_kps[i].pt );
 	}
 	*/
-	cv::Mat Ldist_coeff = (cv::Mat_<double>(1,4) << -0.0306, 0.053, 0.0020, 0.0014);
 	cv::Mat rvec, tvec;
 	int iterations = 100;
 	bool optimizingPnP = true;
