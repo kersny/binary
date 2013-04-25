@@ -1,6 +1,7 @@
 #include "stereoProcess.hpp"
 #include "trifocalTensor.hpp"
 #include "stereoBagParser.cpp"
+#include "unsupported/Eigen/NonLinearOptimization"
 
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
@@ -9,6 +10,53 @@
 #define DRK cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS
 
 std::string feature_type = "SIFT"; // options: "SIFT", "SURF", etc
+class ReprojFunc
+{
+    public:
+	Eigen::Matrix<double, 3, 4> _P1;
+	Eigen::Matrix<double, 3, 4> _P2;
+	Eigen::Vector3d _x1;
+	Eigen::Vector3d _x2;
+	ReprojFunc(const Eigen::Matrix<double, 3, 4> P1, const Eigen::Matrix<double, 3, 4> P2, const Eigen::Vector3d x1, const Eigen::Vector3d x2)
+	    : _P1(P1),_P2(P2),_x1(x1),_x2(x2) {};
+	int operator()(const Eigen::VectorXd &x, Eigen::VectorXd &fvec) const
+	{
+	    Eigen::Vector3d x1_prime = _P1*x;
+	    Eigen::Vector3d x2_prime = _P2*x;
+	    fvec(0) = x1_prime(0) - _x1(0);
+	    fvec(1) = x1_prime(1) - _x1(1);
+	    fvec(2) = x1_prime(2) - _x1(2);
+	    fvec(3) = x2_prime(0) - _x2(0);
+	    fvec(4) = x2_prime(1) - _x2(1);
+	    fvec(5) = x2_prime(2) - _x2(2);
+	    return 0;
+	}
+	int df(const Eigen::VectorXd &x, Eigen::MatrixXd &fjac) const
+	{
+	    Eigen::VectorXd row1(4);
+	    Eigen::VectorXd row2(4);
+	    Eigen::VectorXd row3(4);
+	    Eigen::VectorXd row4(4);
+	    Eigen::VectorXd row5(4);
+	    Eigen::VectorXd row6(4);
+	    row1 << _P1(0,0), _P1(0,1), _P1(0,2), _P1(0,3);
+	    row2 << _P1(1,0), _P1(1,1), _P1(1,2), _P1(1,3);
+	    row3 << _P1(2,0), _P1(2,1), _P1(2,2), _P1(2,3);
+	    row4 << _P2(0,0), _P2(0,1), _P2(0,2), _P2(0,3);
+	    row5 << _P2(1,0), _P2(1,1), _P2(1,2), _P2(1,3);
+	    row6 << _P2(2,0), _P2(2,1), _P2(2,2), _P2(2,3);
+	    fjac.row(0) = row1;
+	    fjac.row(1) = row2;
+	    fjac.row(2) = row3;
+	    fjac.row(3) = row4;
+	    fjac.row(4) = row5;
+	    fjac.row(5) = row6;
+	    return 0;
+	}
+
+	int inputs() const { return 4; }// inputs is the dimension of x.
+	int values() const { return 6; } // "values" is the number of f_i and
+};
 
 cv::Mat triangulatePoint(cv::Mat Pl,cv::Mat Pr,cv::Point2f left_point,cv::Point2f right_point)
 {
@@ -27,7 +75,11 @@ cv::Mat triangulatePoint(cv::Mat Pl,cv::Mat Pr,cv::Point2f left_point,cv::Point2
     A.block<3,4>(3,0) = Pre;
     b.block<3,1>(0,0) = lp;
     b.block<3,1>(3,0) = rp;
-    Eigen::Matrix<double, 4, 1> result = (A.transpose()*A).inverse()*(A.transpose()*b);
+    Eigen::VectorXd result = (A.transpose()*A).inverse()*(A.transpose()*b);
+    result = result/result(3,0);
+    ReprojFunc func(Ple,Pre,lp,rp);
+    Eigen::LevenbergMarquardt<ReprojFunc, double> lm(func);
+    lm.minimize(result);
     result = result/result(3,0);
     cv::Mat ret(4,1,CV_64F);
     cv::eigen2cv(result,ret);
@@ -294,10 +346,13 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
 	cv::Mat rvec(3,1,CV_64F);
 
 	vector<int> inliers;
+
+
 	cv::solvePnPRansac(pts3, prev_points_d, Kl, Ldist_coeff, rvec, tvec);
-	cv::Mat R;
+	cv::Mat R,Rt;
 	cv::Rodrigues(rvec, R);
-	cout << R << endl << tvec << endl;
+	cv::transpose(R,Rt);
+	cout << R << endl << -Rt*tvec << endl;
 
         cv::Mat stiched = make_mono_image(L_mat, R_mat, t.L_kps, t.R_kps);
         sized_show(stiched, 0.25, "MONO IMAGE");
