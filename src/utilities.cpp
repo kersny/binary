@@ -55,9 +55,8 @@ std::string ppmd(cv::Mat m) {
         for(int j = 0; j < m.cols; j++) {
             s << std::setw(width) << std::setprecision(prec) << m.at<double>(i,j);
             if(j < m.cols-1) s << " , ";
-            else s << " ; ";
         }
-        s << std::endl;
+        if(i < m.rows-1) s << " ; " << std::endl;
     }
     s << "]";
     return s.str();
