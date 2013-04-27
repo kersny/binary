@@ -154,7 +154,7 @@ std::vector<cv::DMatch> get_matches(cv::Mat L_features, cv::Mat R_features) {
 }
 
 // Return the sorted vector of query indeces from a vector of matches
-std::vector<int> get_query_idxs(std::vector<cv::DMatch> matches) {
+std::vector<int> StereoProcess::get_query_idxs(std::vector<cv::DMatch> matches) {
     std::vector<int> query_idxs;
     query_idxs.reserve(matches.size());
     for(uint i=0; i < matches.size(); i++) {
@@ -164,18 +164,80 @@ std::vector<int> get_query_idxs(std::vector<cv::DMatch> matches) {
 }
 
 // find a keypoint index x from a sorted vector of query indeces
-int find_kp(std::vector<int> q_idxs, int x) {
+int StereoProcess::find_kp(std::vector<int> q_idxs, int x) {
     if(std::binary_search(q_idxs.begin(), q_idxs.end(), x)) {
-        // R_index = Index of R keypoint in RP matches
+        // B_index = Index of B keypoint in RP matches
         std::vector<int>::iterator index_iter =
             std::lower_bound(q_idxs.begin(), q_idxs.end(), x);
-        int R_index = index_iter - q_idxs.begin();
-        return R_index;
+        int B_index = index_iter - q_idxs.begin();
+        return B_index;
     } else {
         return -1;
     }
 }
 
+// Get only keypoints that match correctly across keypoint sets from n images
+//  given keypoints and corresponding features from all frames
+vector< vector<cv::KeyPoint> > 
+    StereoProcess::get_circular_matches(vector< vector<cv::KeyPoint> > all_pts,
+                                        vector< cv::Mat> all_features) 
+{
+    uint n = all_pts.size();
+    // Get n cycle matches 0->1 , 1->2, ... (n-1)->0
+    vector< vector<cv::DMatch> > cycle_matches;
+    // Query indeces of matches are sorted in ascending order
+    vector< vector<int> > cycle_qidxs;
+    for(uint i = 0; i < n; i++) {
+        int a = i;         // current image's whose features are being matched
+        int b = (i+1) % n; // index of a's neighbor in cycle
+        cv::Mat a_fts = all_features[a];
+        cv::Mat b_fts = all_features[b];
+        cycle_matches.push_back( get_matches(a_fts, b_fts));
+        cycle_qidxs.push_back( get_query_idxs(cycle_matches[i]));
+    }
+    // Extract only keypoints that can be matched through the whole cycle
+    vector< vector<cv::KeyPoint> > cycle_kps;
+    for(uint x = 0; x < n; x++) {
+        // initialize solution vectors
+        vector<cv::KeyPoint> tmp;
+        cycle_kps.push_back(tmp);
+    }
+    // Loop through all keypoints in image 0 from match 0->1
+    for(uint i = 0; i < cycle_matches[0].size(); i++) {
+        // The query index of a found point in a cyclic match 
+        //  for each of the original keypoint sets
+        vector< int > kp_qidxs;
+        kp_qidxs.reserve(n);
+        int start_query_val = cycle_matches[0][i].queryIdx;
+        kp_qidxs[0] = start_query_val;
+        // Attempt to follow this keypoint through all images
+        //  back to itself
+        int start_train_val = cycle_matches[0][i].trainIdx;
+        bool lost = false; // able to follow matches
+        int cur_train_val = start_train_val;
+        uint x = 1; // x is index of next image
+        while( !lost && x < n) {
+            int next_index = find_kp(cycle_qidxs[x], cur_train_val);
+            if(next_index == -1) {
+                lost = true;
+            } else {
+                kp_qidxs[x] = cur_train_val;
+                cur_train_val = cycle_matches[x][next_index].trainIdx;
+                x++;
+            }
+        }
+        // if final match ended at original position in image 0
+        //  then populate the solution with the matched points
+        if(!lost && cur_train_val == start_query_val) {
+            for(uint x = 0; x < n; x++) {
+                cv::KeyPoint cur_pt = all_pts[x][ kp_qidxs[x] ];
+                cycle_kps[x].push_back(cur_pt);
+                // TODO: add match weights in
+            }
+        }
+    }
+    return cycle_kps;
+}
 
 // Takes the left and right image, and ordered matching keypoints from each
 //  and produces the stiched together monocular version of the stereo images
@@ -313,6 +375,28 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
             }
         }
         std::cout << "TripleMatches size: " << t.R_kps.size() << "\n";
+
+        vector< vector<cv::KeyPoint> > all_pts;
+        all_pts.push_back(L_kps);
+        all_pts.push_back(R_kps);
+        all_pts.push_back(P_kps);
+        vector<cv::Mat> all_fts;
+        all_fts.push_back(L_features);
+        all_fts.push_back(R_features);
+        all_fts.push_back(P_features);
+        vector< vector<cv::KeyPoint> > good_pts;
+        good_pts = get_circular_matches(all_pts, all_fts);
+        std::cout << "GoodPoints size 0: " << good_pts[0].size() << "\n";
+        std::cout << "GoodPoints size 1: " << good_pts[1].size() << "\n";
+        std::cout << "GoodPoints size 2: " << good_pts[2].size() << "\n";
+
+
+for(uint x=0; x<10 && x<good_pts[2].size(); x++) {
+    std::cout << " pt l " << good_pts[0][x].pt << "\n";
+    std::cout << " pt r " << good_pts[1][x].pt << "\n";
+    std::cout << " pt p " << good_pts[2][x].pt << "\n";
+}
+
 	cv::Mat Kl = (cv::Mat_<double>(3,3) << 1107.58877335145,0,703.563442850518,0,1105.93566117489,963.193789785819,0,0,1);
 	cv::Mat Kr = (cv::Mat_<double>(3,3) << 1104.28764692449,0,761.642398493953,0,1105.31682336766,962.344514230255,0,0,1);
 	cv::Mat C = (cv::Mat_<double>(3,4) << 1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0);
@@ -328,10 +412,10 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
             0.001724650725893,0.0187425606411105,0.999822855310123,-0.789271765090486);
 	std::vector<cv::Point3f> pts3;
 	std::vector<cv::Point2f> prev_points_d, left_points_d, right_points_d, prev_points, left_points, right_points;
-	for (uint i = 0; i < t.L_kps.size(); i++) {
-	    left_points_d.push_back(t.L_kps[i].pt);
-	    right_points_d.push_back(t.R_kps[i].pt);
-	    prev_points_d.push_back(t.P_kps[i].pt);
+	for (uint i = 0; i < good_pts[0].size(); i++) {
+	    left_points_d.push_back( good_pts[0][i].pt);
+	    right_points_d.push_back(good_pts[1][i].pt);
+	    prev_points_d.push_back( good_pts[2][i].pt);
 	}
 	cv::undistortPoints(left_points_d, left_points, Kl, Ldist_coeff);
 	cv::undistortPoints(right_points_d, right_points, Kr, Rdist_coeff);
@@ -362,27 +446,27 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
         //sized_show(stiched, 0.25, "MONO IMAGE");
 
         // features / matches of triple matches
-        cv::Mat L2_features = extract_features(L_mat, t.L_kps);
-        cv::Mat R2_features = extract_features(R_mat, t.R_kps);
+        cv::Mat L2_features = extract_features(L_mat, good_pts[0]);
+        cv::Mat R2_features = extract_features(R_mat, good_pts[1]);
 
         std::vector<cv::DMatch> LR2_matches =
             get_matches(L2_features, R2_features);
 
         // Display matches
         cv::Mat img_matches;
-        cv::drawMatches(L_mat, t.L_kps, R_mat, t.R_kps,
+        cv::drawMatches(L_mat, good_pts[0], R_mat, good_pts[1],
                         LR2_matches, img_matches, cv::Scalar::all(-1), cv::Scalar::all(-1),
                         std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
-        sized_show(img_matches, 0.25, "MATCHES");
+        sized_show(img_matches, 0.4, "MATCHES");
 
         cv::Mat L_out, R_out, P_out;
-        cv::drawKeypoints(L_mat, t.L_kps, L_out, cv::Scalar(255, 0, 0), DRK);
-        cv::drawKeypoints(R_mat, t.R_kps, R_out, cv::Scalar(255, 0, 0), DRK);
-        cv::drawKeypoints(P_mat, t.P_kps, P_out, cv::Scalar(255, 0, 0), DRK);
-        sized_show(L_out, 0.25, "LEFT");
-        sized_show(R_out, 0.25, "RIGHT");
-        sized_show(P_out, 0.25, "PREV");
-        cv::waitKey(10);
+        cv::drawKeypoints(L_mat, good_pts[0], L_out, cv::Scalar(255, 0, 0), DRK);
+        cv::drawKeypoints(R_mat, good_pts[1], R_out, cv::Scalar(255, 0, 0), DRK);
+        cv::drawKeypoints(P_mat, good_pts[2], P_out, cv::Scalar(255, 0, 0), DRK);
+        sized_show(L_out, 0.45, "LEFT");
+        sized_show(R_out, 0.45, "RIGHT");
+        sized_show(P_out, 0.45, "PREV");
+        cv::waitKey(0);
     }
 
     L_features.copyTo(P_features);

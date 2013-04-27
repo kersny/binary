@@ -47,6 +47,13 @@ class StereoProcess {
         cv::Mat extract_features(cv::Mat, std::vector<cv::KeyPoint>);
         cv::Mat im_to_opencv(const sm::ImageConstPtr&);
         void process_im_pair(const cv::Mat&, const cv::Mat&, ros::Time);
+
+        std::vector<int> get_query_idxs(std::vector<cv::DMatch>);
+        int find_kp(std::vector<int> q_idxs, int x);
+
+        std::vector< std::vector<cv::KeyPoint> > 
+            get_circular_matches(std::vector< std::vector<cv::KeyPoint> >,
+                                 std::vector< cv::Mat> all_fts);
 };
 
 class TripleMatches {
