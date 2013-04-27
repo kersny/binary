@@ -322,10 +322,13 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
 	//cv::Mat PoseR = (cv::Mat_<double>(4,4) << 0.999971932224562,-0.00732216763241206,-0.0015876473912136,-554.348268227282, 0.00729111397179107,0.999797530643968,-0.0187546627608496,-0.435011047094735,0.001724650725893,0.0187425606411105,0.999822855310123,-0.789271765090486,0,0,0,1);
 	cv::Mat Pl = Kl * C * PoseL;
 	//cv::Mat Pr = Kl * C * PoseR;
-	cv::Mat Pr = (cv::Mat_<double>(3,4) << 1105.57021914223,6.18934957543074,759.754258185686,-612760.0875376,9.71869909913803, 1123.12983099782,941.444195743573,-1240.37638207625, 0.001724650725893,0.0187425606411105,0.999822855310123,-0.789271765090486);
+	cv::Mat Pr = (cv::Mat_<double>(3,4) << \
+            1105.57021914223,6.18934957543074,759.754258185686,-612760.0875376, \
+            9.71869909913803, 1123.12983099782,941.444195743573,-1240.37638207625, \
+            0.001724650725893,0.0187425606411105,0.999822855310123,-0.789271765090486);
 	std::vector<cv::Point3f> pts3;
 	std::vector<cv::Point2f> prev_points_d, left_points_d, right_points_d, prev_points, left_points, right_points;
-	for (int i = 0; i < t.L_kps.size(); i++) {
+	for (uint i = 0; i < t.L_kps.size(); i++) {
 	    left_points_d.push_back(t.L_kps[i].pt);
 	    right_points_d.push_back(t.R_kps[i].pt);
 	    prev_points_d.push_back(t.P_kps[i].pt);
@@ -333,7 +336,7 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
 	cv::undistortPoints(left_points_d, left_points, Kl, Ldist_coeff);
 	cv::undistortPoints(right_points_d, right_points, Kr, Rdist_coeff);
 	cv::undistortPoints(prev_points_d, prev_points, Kl, Ldist_coeff);
-	for (int i = 0; i < left_points.size(); i++) {
+	for (uint i = 0; i < left_points.size(); i++) {
 	    //cout << left << " " << right << endl;
 	    cv::Mat pt = triangulatePoint(Pl,Pr,left_points[i],right_points[i]);
 	    cv::Point3f actual;
@@ -341,21 +344,22 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
 	    actual.y = pt.at<double>(1,0);
 	    actual.z = pt.at<double>(2,0);
 	    pts3.push_back(actual);
+            //std::cout << actual / 1000.0 << "\n";
 	}
 	cv::Mat tvec(3,1,CV_64F);
-	cv::Mat rvec(3,1,CV_64F);
+	cv::Mat rvec;
 
-	vector<int> inliers;
-
-
-	cv::solvePnPRansac(pts3, prev_points_d, Kl, Ldist_coeff, rvec, tvec);
+	//vector<int> inliers;
+        int iterations = 100;
+        cv::solvePnPRansac(pts3, prev_points_d, Kl, Ldist_coeff, 
+                           rvec, tvec, false, iterations);
 	cv::Mat R,Rt;
 	cv::Rodrigues(rvec, R);
 	cv::transpose(R,Rt);
-	cout << R << endl << -Rt*tvec << endl;
+	cout << ppmd(R) << endl << ppmd(-Rt*tvec) << endl;
 
-        cv::Mat stiched = make_mono_image(L_mat, R_mat, t.L_kps, t.R_kps);
-        sized_show(stiched, 0.25, "MONO IMAGE");
+        //cv::Mat stiched = make_mono_image(L_mat, R_mat, t.L_kps, t.R_kps);
+        //sized_show(stiched, 0.25, "MONO IMAGE");
 
         // features / matches of triple matches
         cv::Mat L2_features = extract_features(L_mat, t.L_kps);
