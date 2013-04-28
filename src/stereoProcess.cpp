@@ -5,6 +5,9 @@
 #include <rosbag/view.h>
 #include <boost/foreach.hpp>
 #include <cmath>
+#include <algorithm>
+
+#include <unsupported/Eigen/NonLinearOptimization>
 
 #define DRK cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS
 
@@ -88,7 +91,7 @@ std::vector<cv::DMatch> get_matches(cv::Mat L_features, cv::Mat R_features) {
         // Refine matches by throwing out outliers
         // outlier_factor = number of standard deviations
         //                  above mean to consider an outlier
-        double outlier_factor = -0.45;
+        double outlier_factor = -0.4;
         cv::vector<cv::DMatch> good_matches;
         for(unsigned int i=0; i < matches.size(); i++) {
             if(matches[i].distance < dist_mean + outlier_factor * std_dev) {
@@ -227,6 +230,30 @@ cv::Mat make_mono_image(cv::Mat L_mat, cv::Mat R_mat,
     return stiched;
 }
 
+std::pair<Eigen::Matrix3d,Eigen::Vector3d> computeOrientation(std::vector<Eigen::Vector3d> pts1, std::vector<Eigen::Vector3d> pts2)
+{
+    Eigen::Vector3d now_avg,prev_avg;
+    now_avg << 0.0,0.0,0.0;
+    prev_avg << 0.0,0.0,0.0;
+    for (unsigned int i = 0; i < pts1.size(); i++) {
+	now_avg += pts1[i];
+	prev_avg += pts2[i];
+    }
+    Eigen::Vector3d centroid_now = now_avg/pts1.size();
+    Eigen::Vector3d centroid_prev = prev_avg/pts1.size();
+    Eigen::Matrix3d cov = Eigen::Matrix3d::Zero();
+    for (unsigned int i = 0; i < pts1.size(); i++) {
+	cov += (pts1[i] - centroid_now)*((pts2[i] - centroid_prev).transpose());
+    }
+    Eigen::JacobiSVD<Eigen::Matrix3d> cov_svd(cov, Eigen::ComputeFullU | Eigen::ComputeFullV);
+    Eigen::Matrix3d R = cov_svd.matrixV()*(cov_svd.matrixU().transpose());
+    if (R.determinant() < 0) {
+	R.col(2) = -1*R.col(2);
+    }
+    Eigen::Vector3d trans = -R*centroid_now + centroid_prev;
+    return std::make_pair(R,trans);
+}
+
 void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
                                     const cv::Mat& CR_mat,
                                     ros::Time c_time)
@@ -290,9 +317,9 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
 	cv::Mat Pl = (cv::Mat_<double>(3,4) << 1107.58877335145, 0, 703.563442850518, 0, 0, 1105.93566117489, 963.193789785819, 0, 0, 0, 1, 0);
 	cv::Mat Pr = (cv::Mat_<double>(3,4) << 1105.57021914223,6.18934957543074,759.754258185686,-612760.0875376,9.71869909913803, 1123.12983099782,941.444195743573,-1240.37638207625, 0.001724650725893,0.0187425606411105,0.999822855310123,-0.789271765090486);
 	std::vector<Eigen::Vector3d> pts3_now, pts3_prev;
-	std::vector<cv::Point2f> prev_left_points_d, prev_right_points_d, 
-                                 left_points_d, right_points_d, 
-                                 prev_left_points, prev_right_points, 
+	std::vector<cv::Point2f> prev_left_points_d, prev_right_points_d,
+                                 left_points_d, right_points_d,
+                                 prev_left_points, prev_right_points,
                                  left_points, right_points;
         for (unsigned int i = 0; i < good_pts[0].size(); i++) {
             left_points_d.push_back( good_pts[0][i].pt);
@@ -304,36 +331,56 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
 	cv::undistortPoints(right_points_d, right_points, Kr, Rdist_coeff);
 	cv::undistortPoints(prev_left_points_d, prev_left_points, Kl, Ldist_coeff);
 	cv::undistortPoints(prev_right_points_d, prev_right_points, Kr, Rdist_coeff);
-	Eigen::Vector3d now_avg,prev_avg;
-	now_avg << 0.0,0.0,0.0;
-	prev_avg << 0.0,0.0,0.0;
 	for (unsigned int i = 0; i < left_points.size(); i++) {
 	    Eigen::Vector3d pt_now = triangulatePoint(Pl,Pr,left_points[i],right_points[i]);
 	    Eigen::Vector3d pt_prev = triangulatePoint(Pl,Pr,prev_left_points[i],prev_right_points[i]);
-	    now_avg += pt_now;
-	    prev_avg += pt_prev;
 	    pts3_now.push_back(pt_now);
 	    pts3_prev.push_back(pt_prev);
 	}
-	Eigen::Vector3d centroid_now = now_avg/left_points.size();
-	Eigen::Vector3d centroid_prev = prev_avg/left_points.size();
-        std::cout << "centroid_now: \n" << centroid_now << "\n" << 
-                     "centroid_prev: \n" << centroid_prev << "\n";
-	Eigen::Matrix3d cov;
-	cov << 0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0;
-	for (unsigned int i = 0; i < left_points.size(); i++) {
-	    cov += (pts3_now[i] - centroid_now)*((pts3_prev[i] - centroid_prev).transpose());
+	double maxRatio = 0;
+	int iter = 0;
+	Eigen::Matrix3d R_final = Eigen::Matrix3d::Zero();
+	Eigen::Vector3d T_final = Eigen::Vector3d::Zero();
+	while (iter < 250) {
+	    std::vector<int> indices(good_pts[0].size());
+	    for (unsigned int i = 0; i < good_pts[0].size(); i++) {
+		indices.push_back(i);
+	    }
+	    std::random_shuffle(indices.begin(), indices.end());
+	    std::vector<Eigen::Vector3d> pts1,pts2;
+	    for (unsigned int i = 0; i < 3; i++) {
+		pts1.push_back(pts3_now[indices[i]]);
+		pts2.push_back(pts3_prev[indices[i]]);
+	    }
+
+	    std::pair<Eigen::Matrix3d,Eigen::Vector3d> ans = computeOrientation(pts1, pts2);
+
+	    int inlierCount = 0;
+	    std::vector<int> inliers;
+	    for (unsigned int i = 0; i < good_pts[0].size(); i++) {
+		if (((ans.first*(pts3_now[i]) + ans.second) - pts3_prev[i]).squaredNorm() < 65.0) {
+		    inliers.push_back(i);
+		    inlierCount++;
+		}
+	    }
+	    double inlierRatio = ((double)inlierCount)/((double)pts3_prev.size());
+	    if (inlierRatio > maxRatio) {
+		std::vector<Eigen::Vector3d> pts1_all,pts2_all;
+		for (unsigned int i = 0; i < inliers.size(); i++) {
+		    pts1_all.push_back(pts3_now[inliers[i]]);
+		    pts2_all.push_back(pts3_prev[inliers[i]]);
+		}
+		std::pair<Eigen::Matrix3d,Eigen::Vector3d> ans = computeOrientation(pts1_all, pts2_all);
+		R_final = ans.first;
+		T_final = ans.second;
+		maxRatio = inlierRatio;
+	    }
+	    iter++;
 	}
-	Eigen::JacobiSVD<Eigen::Matrix3d> cov_svd(cov, Eigen::ComputeFullU | Eigen::ComputeFullV);
-	Eigen::Matrix3d R = cov_svd.matrixV()*(cov_svd.matrixU().transpose());
-	if (R.determinant() < 0) {
-	    R.col(2) = -1*R.col(2);
-	}
-	Eigen::Vector3d trans = -R*centroid_now + centroid_prev;
-        std::cout << "dt: \n" << (trans / 1000.0) << "\n";
-	position += trans;
-	orientation = R * orientation;
-	std::cout << "R: \n" << orientation << "\nt: \n" << (position / 1000.0) << std::endl;
+	std::cout << maxRatio << std::endl;
+	position += T_final;
+	orientation = R_final * orientation;
+	std::cout << orientation << std::endl << position << std::endl;
 
         //cv::Mat stiched = make_mono_image(CL_mat, CR_mat, good_pts[0], good_pts[1]);
         //sized_show(stiched, 0.25, "MONO IMAGE");

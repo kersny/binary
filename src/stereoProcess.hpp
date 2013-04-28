@@ -58,21 +58,4 @@ class StereoProcess {
             get_circular_matches(std::vector< std::vector<cv::KeyPoint> >,
                                  std::vector< cv::Mat> all_fts);
 };
-
-class QuadMatches {
-    public:
-        // weighting for sum of keypoints responses (higher is better)
-        static const double kp_weight = -0.0005;
-        // note in opencv < 2.4.4 keypoint responses for SIFT will all be 0
-        static const double match_dist_weight = 1.0;
-
-        std::vector<cv::KeyPoint> L_kps;
-        std::vector<cv::KeyPoint> R_kps;
-        std::vector<cv::KeyPoint> P_L_kps;
-        std::vector<cv::KeyPoint> P_R_kps;
-        std::vector<double> weights;
-            // weight of the triple match is a function of
-            //  keypoint responses and match distances
-};
-
 #endif
