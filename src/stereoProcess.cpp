@@ -142,7 +142,7 @@ std::vector<cv::DMatch> get_matches(cv::Mat L_features, cv::Mat R_features) {
         // Refine matches by throwing out outliers
         // outlier_factor = number of standard deviations
         //                  above mean to consider an outlier
-        double outlier_factor = -0.4;
+        double outlier_factor = -0.45;
         cv::vector<cv::DMatch> good_matches;
         for(uint i=0; i < matches.size(); i++) {
             if(matches[i].distance < dist_mean + outlier_factor * std_dev) {
@@ -281,16 +281,16 @@ cv::Mat make_mono_image(cv::Mat L_mat, cv::Mat R_mat,
     return stiched;
 }
 
-void StereoProcess::process_im_pair(const cv::Mat& L_mat,
-                                    const cv::Mat& R_mat,
-                                    ros::Time time)
+void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
+                                    const cv::Mat& CR_mat,
+                                    ros::Time c_time)
 {
     std::ostringstream os;
-    os << "Processing image pair with timestamp: " << time << std::endl;
+    os << "Processing image pair with timestamp: " << c_time << std::endl;
     debug_print(os.str(), 3);
 
-    std::vector<cv::KeyPoint> L_kps, R_kps;
-    cv::Mat L_features, R_features;
+    std::vector<cv::KeyPoint> CL_kps, CR_kps;
+    cv::Mat CL_features, CR_features;
 
     #pragma omp parallel
     {
@@ -298,180 +298,144 @@ void StereoProcess::process_im_pair(const cv::Mat& L_mat,
         {
             #pragma omp section
             {
-                L_kps = get_keypoints(L_mat);
-                L_features = extract_features(L_mat, L_kps);
+                CL_kps = get_keypoints(CL_mat);
+                CL_features = extract_features(CL_mat, CL_kps);
             }
             #pragma omp section
             {
-                R_kps = get_keypoints(R_mat);
-                R_features = extract_features(R_mat, R_kps);
+                CR_kps = get_keypoints(CR_mat);
+                CR_features = extract_features(CR_mat, CR_kps);
             }
         }
     }
 
-    std::cout << "L_kps size: " << L_kps.size() << "\n";
-    std::cout << "R_kps size: " << R_kps.size() << "\n";
-    std::cout << "P_kps size: " << P_kps.size() << "\n";
-
-    std::cout << "L_features size: " << L_features.rows << "\n";
-    std::cout << "R_features size: " << R_features.rows << "\n";
-    std::cout << "P_features size: " << P_features.rows << "\n";
+    std::cout << "CL_kps size: " << CL_kps.size() << "\n";
+    std::cout << "CR_kps size: " << CR_kps.size() << "\n";
+    std::cout << "PL_kps size: " << PL_kps.size() << "\n";
+    std::cout << "PR_kps size: " << PR_kps.size() << "\n";
 
     // Do not find triple-matches on first image pair
     //  or if no features found.
-    if(P_kps.size() > 0 && L_kps.size() > 0 && R_kps.size() > 0) {
-
-        std::vector<cv::DMatch> LR_matches =
-            get_matches(L_features, R_features);
-
-        std::cout << "\nLR size: " << LR_matches.size() << "\n";
-
-        std::vector<cv::DMatch> RP_matches =
-            get_matches(R_features, P_features);
-
-        std::cout << "\nRP size: " << RP_matches.size() << "\n";
-
-        std::vector<cv::DMatch> PL_matches =
-            get_matches(P_features, L_features);
-
-        std::cout << "\nPL size: " << PL_matches.size() << "\n";
-
-        // Query indeces of matches are sorted in ascending order
-        std::vector<int> L_qidxs = get_query_idxs(LR_matches);
-        std::vector<int> R_qidxs = get_query_idxs(RP_matches);
-        std::vector<int> P_qidxs = get_query_idxs(PL_matches);
-
-        TripleMatches t;
-
-        for(uint i=0; i < LR_matches.size(); i++) {
-            int L_kp_1 = LR_matches[i].queryIdx;
-            int R_kp =   LR_matches[i].trainIdx;
-            // Check if R keypoint from LR is in RP
-            int RP_kp_i = find_kp(R_qidxs, R_kp);
-            if(RP_kp_i != -1) {
-                int P_kp = RP_matches.at(RP_kp_i).trainIdx;
-                // Check if P keypoint from RP is in PL
-                int PL_kp_i = find_kp(P_qidxs, P_kp);
-                if(PL_kp_i != -1) {
-                    int L_kp_2 = PL_matches.at(PL_kp_i).trainIdx;
-                    if(L_kp_2 == L_kp_1) {
-                        // Cycle is complete, same match in all 3 images
-                        t.L_kps.push_back(L_kps.at(L_kp_1));
-                        t.R_kps.push_back(R_kps.at(R_kp));
-                        t.P_kps.push_back(P_kps.at(P_kp));
-
-                        double weight = t.kp_weight * (
-                                            L_kps.at(L_kp_1).response +
-                                            R_kps.at(R_kp).response +
-                                            P_kps.at(P_kp).response) +
-                                        t.match_dist_weight * (
-                                            LR_matches[i].distance +
-                                            RP_matches.at(RP_kp_i).distance +
-                                            PL_matches.at(PL_kp_i).distance);
-
-                        t.weights.push_back(weight);
-                    }
-                }
-            }
-        }
-        std::cout << "TripleMatches size: " << t.R_kps.size() << "\n";
-
+    if(CL_kps.size() == 0 || CR_kps.size() == 0 ||
+       PL_kps.size() == 0 || PR_kps.size() == 0 )
+    {
+        std::cout << "Error! Not enough keypoints!";
+    } else {
         vector< vector<cv::KeyPoint> > all_pts;
-        all_pts.push_back(L_kps);
-        all_pts.push_back(R_kps);
-        all_pts.push_back(P_kps);
+        all_pts.push_back(CL_kps);
+        all_pts.push_back(CR_kps);
+        all_pts.push_back(PL_kps);
+        all_pts.push_back(PR_kps);
         vector<cv::Mat> all_fts;
-        all_fts.push_back(L_features);
-        all_fts.push_back(R_features);
-        all_fts.push_back(P_features);
+        all_fts.push_back(CL_features);
+        all_fts.push_back(CR_features);
+        all_fts.push_back(PL_features);
+        all_fts.push_back(PR_features);
         vector< vector<cv::KeyPoint> > good_pts;
         good_pts = get_circular_matches(all_pts, all_fts);
-        std::cout << "GoodPoints size 0: " << good_pts[0].size() << "\n";
-        std::cout << "GoodPoints size 1: " << good_pts[1].size() << "\n";
-        std::cout << "GoodPoints size 2: " << good_pts[2].size() << "\n";
+        std::cout << "GoodPoints size: " << good_pts[0].size() << "\n";
 
+        cv::Mat Kl = (cv::Mat_<double>(3,3) << 1107.58877335145,0,703.563442850518,0,1105.93566117489,963.193789785819,0,0,1);
+        cv::Mat Kr = (cv::Mat_<double>(3,3) << 1104.28764692449,0,761.642398493953,0,1105.31682336766,962.344514230255,0,0,1);
+        cv::Mat C = (cv::Mat_<double>(3,4) << 1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0);
+        cv::Mat PoseL = (cv::Mat_<double>(4,4) << 1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0);
+        cv::Mat Ldist_coeff = (cv::Mat_<double>(1,5) << -0.0306, 0.053, 0.0020, 0.0014, 0.000);
+        cv::Mat Rdist_coeff = (cv::Mat_<double>(1,5) << -0.0243, 0.0448, 0.0027, 0.0023, 0.000);
+        //cv::Mat PoseR = (cv::Mat_<double>(4,4) << 0.999971932224562,-0.00732216763241206,-0.0015876473912136,-554.348268227282, 0.00729111397179107,0.999797530643968,-0.0187546627608496,-0.435011047094735,0.001724650725893,0.0187425606411105,0.999822855310123,-0.789271765090486,0,0,0,1);
+        cv::Mat Pl = Kl * C * PoseL;
+        //cv::Mat Pr = Kl * C * PoseR;
+        cv::Mat Pr = (cv::Mat_<double>(3,4) << \
+                1105.57021914223,6.18934957543074,759.754258185686,-612760.0875376, \
+                9.71869909913803, 1123.12983099782,941.444195743573,-1240.37638207625, \
+                0.001724650725893,0.0187425606411105,0.999822855310123,-0.789271765090486);
+        std::vector<cv::Point3f> pts3;
+        std::vector<cv::Point2f> prev_L_pts_d, prev_R_pts_d, curr_L_pts_d, curr_R_pts_d, 
+                                 prev_L_pts, prev_R_pts, curr_L_pts, curr_R_pts;
+        for (uint i = 0; i < good_pts[0].size(); i++) {
+            curr_L_pts_d.push_back( good_pts[0][i].pt);
+            curr_R_pts_d.push_back( good_pts[1][i].pt);
+            prev_L_pts_d.push_back( good_pts[2][i].pt);
+            prev_R_pts_d.push_back( good_pts[3][i].pt);
+        }
+        cv::undistortPoints(curr_L_pts_d, curr_L_pts, Kl, Ldist_coeff);
+        cv::undistortPoints(curr_R_pts_d, curr_R_pts, Kr, Rdist_coeff);
+        cv::undistortPoints(prev_L_pts_d, prev_L_pts, Kl, Ldist_coeff);
+        cv::undistortPoints(prev_R_pts_d, prev_R_pts, Kr, Rdist_coeff);
+        uint n = curr_L_pts.size();
+        // solve for linear 3DOF translation by minimizing point correspondence error
+        MatrixXd A = MatrixXd::Zero(3*n, 3);
+        MatrixXd b = MatrixXd::Zero(3*n, 1);
+        // note X = [ x ; y ; z ]
+        for (uint i = 0; i <n; i++) {
+            cv::Mat curr_pt = triangulatePoint(Pl,Pr,curr_L_pts[i],curr_R_pts[i]);
+            cv::Mat prev_pt = triangulatePoint(Pl,Pr,prev_L_pts[i],prev_R_pts[i]);
+            A(3*i + 0, 0) = 1;
+            A(3*i + 1, 1) = 1;
+            A(3*i + 2, 2) = 1;
+            b(3*i + 0, 0) = prev_pt.at<double>(0,0) - curr_pt.at<double>(0,0);
+            b(3*i + 1, 0) = prev_pt.at<double>(1,0) - curr_pt.at<double>(1,0);
+            b(3*i + 2, 0) = prev_pt.at<double>(2,0) - curr_pt.at<double>(2,0);
+            //cout << "point delta: \n" << ppmd(curr_pt - prev_pt);
+            // cv::Point3f actual;
+            // actual.x = curr_pt.at<double>(0,0);
+            // actual.y = curr_pt.at<double>(1,0);
+            // actual.z = curr_pt.at<double>(2,0);
+            // pts3.push_back(actual);
+            //std::cout << "c \n" << curr_pt;
+            //std::cout << prev_pt;
+        }
+ //       cout << "\na: \n" << A;
+ //       cout << "\nb: \n" << b;
+        MatrixXd t = A.jacobiSvd( ComputeFullU | ComputeFullV ).solve(b);
+        cout << "\nt: \n" << t / 1000.0;
+        POS += t;
+        cout << "\nPOS: \n" << POS / 1000.0;
+        // cv::Mat tvec(3,1,CV_64F);
+        // cv::Mat rvec;
 
-for(uint x=0; x<10 && x<good_pts[2].size(); x++) {
-    std::cout << " pt l " << good_pts[0][x].pt << "\n";
-    std::cout << " pt r " << good_pts[1][x].pt << "\n";
-    std::cout << " pt p " << good_pts[2][x].pt << "\n";
-}
-
-	cv::Mat Kl = (cv::Mat_<double>(3,3) << 1107.58877335145,0,703.563442850518,0,1105.93566117489,963.193789785819,0,0,1);
-	cv::Mat Kr = (cv::Mat_<double>(3,3) << 1104.28764692449,0,761.642398493953,0,1105.31682336766,962.344514230255,0,0,1);
-	cv::Mat C = (cv::Mat_<double>(3,4) << 1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0);
-	cv::Mat PoseL = (cv::Mat_<double>(4,4) << 1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0);
-	cv::Mat Ldist_coeff = (cv::Mat_<double>(1,5) << -0.0306, 0.053, 0.0020, 0.0014, 0.000);
-	cv::Mat Rdist_coeff = (cv::Mat_<double>(1,5) << -0.0243, 0.0448, 0.0027, 0.0023, 0.000);
-	//cv::Mat PoseR = (cv::Mat_<double>(4,4) << 0.999971932224562,-0.00732216763241206,-0.0015876473912136,-554.348268227282, 0.00729111397179107,0.999797530643968,-0.0187546627608496,-0.435011047094735,0.001724650725893,0.0187425606411105,0.999822855310123,-0.789271765090486,0,0,0,1);
-	cv::Mat Pl = Kl * C * PoseL;
-	//cv::Mat Pr = Kl * C * PoseR;
-	cv::Mat Pr = (cv::Mat_<double>(3,4) << \
-            1105.57021914223,6.18934957543074,759.754258185686,-612760.0875376, \
-            9.71869909913803, 1123.12983099782,941.444195743573,-1240.37638207625, \
-            0.001724650725893,0.0187425606411105,0.999822855310123,-0.789271765090486);
-	std::vector<cv::Point3f> pts3;
-	std::vector<cv::Point2f> prev_points_d, left_points_d, right_points_d, prev_points, left_points, right_points;
-	for (uint i = 0; i < good_pts[0].size(); i++) {
-	    left_points_d.push_back( good_pts[0][i].pt);
-	    right_points_d.push_back(good_pts[1][i].pt);
-	    prev_points_d.push_back( good_pts[2][i].pt);
-	}
-	cv::undistortPoints(left_points_d, left_points, Kl, Ldist_coeff);
-	cv::undistortPoints(right_points_d, right_points, Kr, Rdist_coeff);
-	cv::undistortPoints(prev_points_d, prev_points, Kl, Ldist_coeff);
-	for (uint i = 0; i < left_points.size(); i++) {
-	    //cout << left << " " << right << endl;
-	    cv::Mat pt = triangulatePoint(Pl,Pr,left_points[i],right_points[i]);
-	    cv::Point3f actual;
-	    actual.x = pt.at<double>(0,0);
-	    actual.y = pt.at<double>(1,0);
-	    actual.z = pt.at<double>(2,0);
-	    pts3.push_back(actual);
-            //std::cout << actual / 1000.0 << "\n";
-	}
-	cv::Mat tvec(3,1,CV_64F);
-	cv::Mat rvec;
-
-	//vector<int> inliers;
-        int iterations = 100;
-        cv::solvePnPRansac(pts3, prev_points_d, Kl, Ldist_coeff, 
-                           rvec, tvec, false, iterations);
-	cv::Mat R,Rt;
-	cv::Rodrigues(rvec, R);
-	cv::transpose(R,Rt);
-	cout << ppmd(R) << endl << ppmd(-Rt*tvec) << endl;
+        //vector<int> inliers;
+        // int iterations = 100;
+        // cv::solvePnPRansac(pts3, prev_points_d, Kl, Ldist_coeff, 
+        //                        rvec, tvec, false, iterations);
+        // cv::Mat R,Rt;
+        // cv::Rodrigues(rvec, R);
+        // cv::transpose(R,Rt);
+        // cout << ppmd(R) << endl << ppmd(-Rt*tvec) << endl;
 
         //cv::Mat stiched = make_mono_image(L_mat, R_mat, t.L_kps, t.R_kps);
         //sized_show(stiched, 0.25, "MONO IMAGE");
 
         // features / matches of triple matches
-        cv::Mat L2_features = extract_features(L_mat, good_pts[0]);
-        cv::Mat R2_features = extract_features(R_mat, good_pts[1]);
+        //cv::Mat L2_features = extract_features(L_mat, good_pts[0]);
+        //cv::Mat R2_features = extract_features(R_mat, good_pts[1]);
 
-        std::vector<cv::DMatch> LR2_matches =
-            get_matches(L2_features, R2_features);
+        //std::vector<cv::DMatch> LR2_matches =
+        //    get_matches(L2_features, R2_features);
 
         // Display matches
-        cv::Mat img_matches;
-        cv::drawMatches(L_mat, good_pts[0], R_mat, good_pts[1],
-                        LR2_matches, img_matches, cv::Scalar::all(-1), cv::Scalar::all(-1),
-                        std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
-        sized_show(img_matches, 0.4, "MATCHES");
+        // cv::Mat img_matches;
+        // cv::drawMatches(L_mat, good_pts[0], R_mat, good_pts[1],
+        //                 LR2_matches, img_matches, cv::Scalar::all(-1), cv::Scalar::all(-1),
+        //                 std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
+        // sized_show(img_matches, 0.4, "MATCHES");
 
-        cv::Mat L_out, R_out, P_out;
-        cv::drawKeypoints(L_mat, good_pts[0], L_out, cv::Scalar(255, 0, 0), DRK);
-        cv::drawKeypoints(R_mat, good_pts[1], R_out, cv::Scalar(255, 0, 0), DRK);
-        cv::drawKeypoints(P_mat, good_pts[2], P_out, cv::Scalar(255, 0, 0), DRK);
-        sized_show(L_out, 0.45, "LEFT");
-        sized_show(R_out, 0.45, "RIGHT");
-        sized_show(P_out, 0.45, "PREV");
-        cv::waitKey(0);
+        cv::Mat CL_out, CR_out, PL_out, PR_out;
+        cv::drawKeypoints(CL_mat, good_pts[0], CL_out, cv::Scalar(255, 0, 0), DRK);
+        cv::drawKeypoints(CR_mat, good_pts[1], CR_out, cv::Scalar(255, 0, 0), DRK);
+        cv::drawKeypoints(PL_mat, good_pts[2], PL_out, cv::Scalar(255, 0, 0), DRK);
+        cv::drawKeypoints(PR_mat, good_pts[3], PR_out, cv::Scalar(255, 0, 0), DRK);
+        sized_show(CL_out, 0.4, "CURR LEFT");
+        sized_show(CR_out, 0.4, "CURR RIGHT");
+        sized_show(PL_out, 0.4, "PREV LEFT");
+        sized_show(PR_out, 0.4, "PREV RIGHT");
+        cv::waitKey(10);
     }
-
-    L_features.copyTo(P_features);
-    P_kps = L_kps;
-    L_mat.copyTo(P_mat);
+    CL_features.copyTo(PL_features);
+    CR_features.copyTo(PR_features);
+    PL_kps = CL_kps;
+    PR_kps = CR_kps;
+    CL_mat.copyTo(PL_mat);
+    CR_mat.copyTo(PR_mat);
 }
 
 int main(int argc, char** argv) {
@@ -479,6 +443,9 @@ int main(int argc, char** argv) {
     ros::NodeHandle nh;
 
     StereoProcess sp;
+
+    //tmp
+    sp.POS = MatrixXd::Zero(3, 1);
 
     cv::initModule_nonfree(); // stallman hates me
 

@@ -38,10 +38,13 @@ class StereoProcess {
         StereoProcess();
         void im_pair_callback(const sm::ImageConstPtr&, const sm::ImageConstPtr&);
 
+        //tmp
+            Eigen::Matrix<double, 3, 1> POS;
+
     private:
-        std::vector<cv::KeyPoint> P_kps;
-        cv::Mat P_features;
-        cv::Mat P_mat;
+        std::vector<cv::KeyPoint> PL_kps, PR_kps;
+        cv::Mat PL_features, PR_features;
+        cv::Mat PL_mat, PR_mat;
 
         std::vector<cv::KeyPoint> get_keypoints(cv::Mat);
         cv::Mat extract_features(cv::Mat, std::vector<cv::KeyPoint>);
