@@ -38,10 +38,10 @@ class StereoProcess {
         StereoProcess();
         void im_pair_callback(const sm::ImageConstPtr&, const sm::ImageConstPtr&);
 
-        //tmp
-            Eigen::Matrix<double, 3, 1> POS;
 
     private:
+	Eigen::Matrix<double, 3, 1> position;
+	Eigen::Matrix3d orientation;
         std::vector<cv::KeyPoint> PL_kps, PR_kps;
         cv::Mat PL_features, PR_features;
         cv::Mat PL_mat, PR_mat;
@@ -54,12 +54,12 @@ class StereoProcess {
         std::vector<int> get_query_idxs(std::vector<cv::DMatch>);
         int find_kp(std::vector<int> q_idxs, int x);
 
-        std::vector< std::vector<cv::KeyPoint> > 
+        std::vector< std::vector<cv::KeyPoint> >
             get_circular_matches(std::vector< std::vector<cv::KeyPoint> >,
                                  std::vector< cv::Mat> all_fts);
 };
 
-class TripleMatches {
+class QuadMatches {
     public:
         // weighting for sum of keypoints responses (higher is better)
         static const double kp_weight = -0.0005;
@@ -68,7 +68,8 @@ class TripleMatches {
 
         std::vector<cv::KeyPoint> L_kps;
         std::vector<cv::KeyPoint> R_kps;
-        std::vector<cv::KeyPoint> P_kps;
+        std::vector<cv::KeyPoint> P_L_kps;
+        std::vector<cv::KeyPoint> P_R_kps;
         std::vector<double> weights;
             // weight of the triple match is a function of
             //  keypoint responses and match distances

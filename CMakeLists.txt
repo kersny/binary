@@ -21,31 +21,16 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 #rosbuild_genmsg()
 #uncomment if you have defined services
 #rosbuild_gensrv()
-find_package(GSL)
-include_directories(${GSL_INCLUDE_DIRS})
 
 rosbuild_add_executable(BINary src/stereoSubscriber.cpp
                                src/stereoProcess.cpp
                                src/utilities.cpp
-                               src/trifocalTensor.cpp
                                src/stereoBagParser.cpp)
-
-# rosbuild_add_executable(bintest src/trifocalTensor.cpp
-# 				src/utilities.cpp)
-# 				src/single_test.cpp)
-
-# target_link_libraries(bintest ${GSL_LIBRARIES})
 
 rosbuild_add_boost_directories()
 rosbuild_link_boost(BINary thread system signals)
-target_link_libraries(BINary ${GSL_LIBRARIES})
 
 rosbuild_add_openmp_flags(BINary)
-
-rosbuild_add_gtest(test/testTrifocalTensor test/testTrifocalTensor.cpp 
-                                           src/trifocalTensor.cpp
-                                           src/utilities.cpp)
-target_link_libraries(test/testTrifocalTensor ${GSL_LIBRARIES})
 
 #common commands for building c++ executables and libraries
 #rosbuild_add_library(${PROJECT_NAME} src/example.cpp)
