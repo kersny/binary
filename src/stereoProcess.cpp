@@ -8,7 +8,7 @@
 
 #define DRK cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS
 
-std::string feature_type = "SIFT"; // options: "SIFT", "SURF", etc
+std::string feature_type = "SURF"; // options: "SIFT", "SURF", etc
 Eigen::Vector3d triangulatePoint(cv::Mat Pl,cv::Mat Pr,cv::Point2f left_point,cv::Point2f right_point)
 {
     Eigen::Matrix<double,3,4> Ple,Pre;
@@ -283,17 +283,20 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
 
 	cv::Mat Kl = (cv::Mat_<double>(3,3) << 1107.58877335145,0,703.563442850518,0,1105.93566117489,963.193789785819,0,0,1);
 	cv::Mat Kr = (cv::Mat_<double>(3,3) << 1104.28764692449,0,761.642398493953,0,1105.31682336766,962.344514230255,0,0,1);
-	cv::Mat C = (cv::Mat_<double>(3,4) << 1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0);
-	cv::Mat PoseL = (cv::Mat_<double>(4,4) << 1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0);
+	//cv::Mat C = (cv::Mat_<double>(3,4) << 1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0);
+	//cv::Mat PoseL = (cv::Mat_<double>(4,4) << 1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0);
 	cv::Mat Ldist_coeff = (cv::Mat_<double>(1,5) << -0.0305748283698362, 0.0530084757712889, 0.00198169725147652, 0.0013820669430398, 0);
 	cv::Mat Rdist_coeff = (cv::Mat_<double>(1,5) << -0.0243498347962812, 0.0447656953196109, 0.0026529511902253, 0.00225483859237588, 0);
 	cv::Mat Pl = (cv::Mat_<double>(3,4) << 1107.58877335145, 0, 703.563442850518, 0, 0, 1105.93566117489, 963.193789785819, 0, 0, 0, 1, 0);
 	cv::Mat Pr = (cv::Mat_<double>(3,4) << 1105.57021914223,6.18934957543074,759.754258185686,-612760.0875376,9.71869909913803, 1123.12983099782,941.444195743573,-1240.37638207625, 0.001724650725893,0.0187425606411105,0.999822855310123,-0.789271765090486);
-	std::vector<Eigen::Vector3d> pts3_now,pts3_prev;
-	std::vector<cv::Point2f> prev_left_points_d, prev_right_points_d, left_points_d, right_points_d, prev_left_points, prev_right_points, left_points, right_points;
+	std::vector<Eigen::Vector3d> pts3_now, pts3_prev;
+	std::vector<cv::Point2f> prev_left_points_d, prev_right_points_d, 
+                                 left_points_d, right_points_d, 
+                                 prev_left_points, prev_right_points, 
+                                 left_points, right_points;
         for (unsigned int i = 0; i < good_pts[0].size(); i++) {
             left_points_d.push_back( good_pts[0][i].pt);
-            right_points.push_back( good_pts[1][i].pt);
+            right_points_d.push_back( good_pts[1][i].pt);
             prev_left_points_d.push_back( good_pts[2][i].pt);
             prev_right_points_d.push_back( good_pts[3][i].pt);
         }
@@ -314,23 +317,26 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
 	}
 	Eigen::Vector3d centroid_now = now_avg/left_points.size();
 	Eigen::Vector3d centroid_prev = prev_avg/left_points.size();
+        std::cout << "centroid_now: \n" << centroid_now << "\n" << 
+                     "centroid_prev: \n" << centroid_prev << "\n";
 	Eigen::Matrix3d cov;
 	cov << 0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0;
 	for (unsigned int i = 0; i < left_points.size(); i++) {
 	    cov += (pts3_now[i] - centroid_now)*((pts3_prev[i] - centroid_prev).transpose());
 	}
 	Eigen::JacobiSVD<Eigen::Matrix3d> cov_svd(cov, Eigen::ComputeFullU | Eigen::ComputeFullV);
-	Eigen::Matrix3d R = cov_svd.matrixV()*cov_svd.matrixU().transpose();
+	Eigen::Matrix3d R = cov_svd.matrixV()*(cov_svd.matrixU().transpose());
 	if (R.determinant() < 0) {
 	    R.col(2) = -1*R.col(2);
 	}
 	Eigen::Vector3d trans = -R*centroid_now + centroid_prev;
+        std::cout << "dt: \n" << (trans / 1000.0) << "\n";
 	position += trans;
 	orientation = R * orientation;
-	std::cout << orientation << std::endl << position << std::endl;
+	std::cout << "R: \n" << orientation << "\nt: \n" << (position / 1000.0) << std::endl;
 
-        cv::Mat stiched = make_mono_image(CL_mat, CR_mat, good_pts[0], good_pts[1]);
-        sized_show(stiched, 0.25, "MONO IMAGE");
+        //cv::Mat stiched = make_mono_image(CL_mat, CR_mat, good_pts[0], good_pts[1]);
+        //sized_show(stiched, 0.25, "MONO IMAGE");
 
         cv::Mat CL_out, CR_out, PL_out, PR_out;
         cv::drawKeypoints(CL_mat, good_pts[0], CL_out, cv::Scalar(255, 0, 0), DRK);
@@ -341,7 +347,7 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
         sized_show(CR_out, 0.4, "CURR RIGHT");
         sized_show(PL_out, 0.4, "PREV LEFT");
         sized_show(PR_out, 0.4, "PREV RIGHT");
-        cv::waitKey(10);
+        cv::waitKey(0);
     }
     CL_features.copyTo(PL_features);
     CR_features.copyTo(PR_features);
