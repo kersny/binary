@@ -14,6 +14,7 @@ class StereoBagParser : public BagParser {
             view = new rosbag::View(bag, rosbag::TopicQuery(topics));
             myIter = (*view).begin();
             std::cout << "New bag parser for bag: " << file << "\n";
+            count = 1;
         }
 
         bool getNext(sm::ImageConstPtr& l_ptr, sm::ImageConstPtr& r_ptr) {
@@ -40,11 +41,13 @@ class StereoBagParser : public BagParser {
             l_ptr = l_img;
             r_ptr = r_img;
             haveL = haveR = false;
-            std::cout << "\n\nParsed image pair. \n";
+            std::cout << "\n\nParsed image pair # " << count << "\n";
+            count++;
             return true;
         }
 
     private:
+        unsigned int count;
         bool haveL, haveR;
         sm::Image::ConstPtr l_img, r_img;
         rosbag::View::iterator myIter;
