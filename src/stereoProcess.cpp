@@ -11,7 +11,7 @@
 
 #define DRK cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS
 
-std::string feature_type = "SURF"; // options: "SIFT", "SURF", etc
+std::string feature_type = "SIFT"; // options: "SIFT", "SURF", etc
 Eigen::Vector3d triangulatePoint(cv::Mat Pl,cv::Mat Pr,cv::Point2f left_point,cv::Point2f right_point)
 {
     Eigen::Matrix<double,3,4> Ple,Pre;
@@ -148,7 +148,7 @@ int StereoProcess::find_kp(std::vector<int> q_idxs, int x) {
     std::vector< std::vector<cv::KeyPoint> > cycle_kps;
     for(unsigned int x = 0; x < n; x++) {
         // initialize solution vectors
-	std::vector<cv::KeyPoint> tmp;
+        std::vector<cv::KeyPoint> tmp;
         cycle_kps.push_back(tmp);
     }
     // Loop through all keypoints in image 0 from match 0->1
@@ -246,7 +246,8 @@ std::pair<Eigen::Matrix3d,Eigen::Vector3d> computeOrientation(std::vector<Eigen:
 	cov += (pts1[i] - centroid_now)*((pts2[i] - centroid_prev).transpose());
     }
     Eigen::JacobiSVD<Eigen::Matrix3d> cov_svd(cov, Eigen::ComputeFullU | Eigen::ComputeFullV);
-    Eigen::Matrix3d R = cov_svd.matrixV()*(cov_svd.matrixU().transpose());
+    //Eigen::Matrix3d R = cov_svd.matrixV()*(cov_svd.matrixU().transpose());
+    Eigen::Matrix3d R = cov_svd.matrixU()*(cov_svd.matrixV().transpose());
     if (R.determinant() < 0) {
 	R.col(2) = -1*R.col(2);
     }
@@ -377,10 +378,11 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
 	    }
 	    iter++;
 	}
-	std::cout << maxRatio << std::endl;
+	std::cout << "Inlier Ratio \n: " << maxRatio << std::endl;
 	position += T_final;
 	orientation = R_final * orientation;
-	std::cout << orientation << std::endl << position << std::endl;
+        std::cout << "Cur Rotation: \n" << R_final << std::endl << "dT: \n" << T_final << std::endl;
+	std::cout << "Pose: \n" << orientation << std::endl << "T: \n" << position << std::endl;
 
         //cv::Mat stiched = make_mono_image(CL_mat, CR_mat, good_pts[0], good_pts[1]);
         //sized_show(stiched, 0.25, "MONO IMAGE");
@@ -394,7 +396,7 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
         sized_show(CR_out, 0.4, "CURR RIGHT");
         sized_show(PL_out, 0.4, "PREV LEFT");
         sized_show(PR_out, 0.4, "PREV RIGHT");
-        cv::waitKey(0);
+        cv::waitKey(10);
     }
     CL_features.copyTo(PL_features);
     CR_features.copyTo(PR_features);

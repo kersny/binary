@@ -1,6 +1,6 @@
 #include "utilities.hpp"
 
-const uint verbosity = 3;
+const uint verbosity = 2;
 
 /**
   * A debug print function to only print debug statements above a chosen importance
