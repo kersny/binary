@@ -11,7 +11,7 @@
 
 #define DRK cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS
 
-std::string feature_type = "SIFT"; // options: "SIFT", "SURF", etc
+std::string feature_type = "SURF"; // options: "SIFT", "SURF", etc
 Eigen::Vector3d triangulatePoint(cv::Mat Pl,cv::Mat Pr,cv::Point2f left_point,cv::Point2f right_point)
 {
     Eigen::Matrix<double,3,4> Ple,Pre;
@@ -340,8 +340,7 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
 	}
 	double maxRatio = 0;
 	int iter = 0;
-	Eigen::Matrix3d R_final = Eigen::Matrix3d::Zero();
-	Eigen::Vector3d T_final = Eigen::Vector3d::Zero();
+        std::vector<Eigen::Vector3d> pts1_all, pts2_all; // all inliers
 	while (iter < 250) {
 	    std::vector<int> indices(good_pts[0].size());
 	    for (unsigned int i = 0; i < good_pts[0].size(); i++) {
@@ -366,19 +365,22 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
 	    }
 	    double inlierRatio = ((double)inlierCount)/((double)pts3_prev.size());
 	    if (inlierRatio > maxRatio) {
-		std::vector<Eigen::Vector3d> pts1_all,pts2_all;
+		pts1_all.clear();
+                pts2_all.clear();
 		for (unsigned int i = 0; i < inliers.size(); i++) {
 		    pts1_all.push_back(pts3_now[inliers[i]]);
 		    pts2_all.push_back(pts3_prev[inliers[i]]);
 		}
-		std::pair<Eigen::Matrix3d,Eigen::Vector3d> ans = computeOrientation(pts1_all, pts2_all);
-		R_final = ans.first;
-		T_final = ans.second;
 		maxRatio = inlierRatio;
 	    }
 	    iter++;
 	}
-	std::cout << "Inlier Ratio \n: " << maxRatio << std::endl;
+        std::pair<Eigen::Matrix3d,Eigen::Vector3d> ans = computeOrientation(pts1_all, pts2_all);
+        Eigen::Matrix3d R_final = Eigen::Matrix3d::Zero();
+        Eigen::Vector3d T_final = Eigen::Vector3d::Zero();
+        R_final = ans.first;
+        T_final = ans.second;
+	std::cout << "Inlier Ratio: " << maxRatio << std::endl;
 	position += T_final;
 	orientation = R_final * orientation;
         std::cout << "Cur Rotation: \n" << R_final << std::endl << "dT: \n" << T_final << std::endl;
