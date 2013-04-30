@@ -35,13 +35,17 @@ class StereoProcess {
         std::string R_channel;
         uint max_im_pairs;
 
+        std::vector<Eigen::Vector3d> modelPoints;
+        std::vector< std::pair<int, int> > modelEdges;
+
         StereoProcess();
         void im_pair_callback(const sm::ImageConstPtr&, const sm::ImageConstPtr&);
 
 
     private:
-	Eigen::Matrix<double, 3, 1> position;
-	Eigen::Matrix3d orientation;
+        Eigen::Matrix<double, 3, 1> position;
+        Eigen::Matrix3d orientation;
+
         std::vector<cv::KeyPoint> PL_kps, PR_kps;
         cv::Mat PL_features, PR_features;
         cv::Mat PL_mat, PR_mat;

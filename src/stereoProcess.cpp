@@ -1,5 +1,6 @@
 #include "stereoProcess.hpp"
 #include "stereoBagParser.cpp"
+#include "OBJParser.hpp"
 
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
@@ -255,6 +256,30 @@ std::pair<Eigen::Matrix3d,Eigen::Vector3d> computeOrientation(std::vector<Eigen:
     return std::make_pair(R,trans);
 }
 
+
+///////
+void drawLine( cv::Mat img, cv::Point start, cv::Point end )
+{
+  int thickness = 2;
+  int lineType = 8;
+  cv::line( img,
+            start, end,
+            cv::Scalar( 255, 0, 0 ),
+            thickness, lineType );
+}
+
+void drawDot( cv::Mat img, cv::Point center )
+{
+    int thickness = -1;
+    int lineType = 8;
+   
+    cv::circle( img,
+            center,
+            10.0,
+            cv::Scalar( 0, 0, 255 ),
+            thickness, lineType );
+}
+
 void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
                                     const cv::Mat& CR_mat,
                                     ros::Time c_time)
@@ -358,7 +383,7 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
 	    int inlierCount = 0;
 	    std::vector<int> inliers;
 	    for (unsigned int i = 0; i < good_pts[0].size(); i++) {
-		if (((ans.first*(pts3_now[i]) + ans.second) - pts3_prev[i]).squaredNorm() < 65.0) {
+		if (((ans.first*(pts3_now[i]) + ans.second) - pts3_prev[i]).squaredNorm() < 60.0) {
 		    inliers.push_back(i);
 		    inlierCount++;
 		}
@@ -389,16 +414,77 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
         //cv::Mat stiched = make_mono_image(CL_mat, CR_mat, good_pts[0], good_pts[1]);
         //sized_show(stiched, 0.25, "MONO IMAGE");
 
-        cv::Mat CL_out, CR_out, PL_out, PR_out;
-        cv::drawKeypoints(CL_mat, good_pts[0], CL_out, cv::Scalar(255, 0, 0), DRK);
-        cv::drawKeypoints(CR_mat, good_pts[1], CR_out, cv::Scalar(255, 0, 0), DRK);
+        cv::Mat PL_out, PR_out;
+        //cv::drawKeypoints(CL_mat, good_pts[0], CL_out, cv::Scalar(255, 0, 0), DRK);
+        //cv::drawKeypoints(CR_mat, good_pts[1], CR_out, cv::Scalar(255, 0, 0), DRK);
+        cv::Mat CL_out(CL_mat.size(), CV_8UC3);
+        cv::cvtColor(CL_mat, CL_out, CV_GRAY2RGB);
+        cv::Mat CR_out(CR_mat.size(), CV_8UC3);
+        cv::cvtColor(CR_mat, CR_out, CV_GRAY2RGB);
+
+        Eigen::MatrixXd W_to_B(4,4); // W is world frame, B is z-forward camera basis
+        W_to_B << 0, -1,  0, 0,    \
+                  0,  0, -1, 2000,\
+                  1,  0,  0, 0,    \
+                  0,  0,  0, 1;
+        // negative y -> positive x
+        // negative z -> positive y
+        // positive x -> positive z
+
+        Eigen::MatrixXd B_to_C(4,4); // B is frame of cameras with Z exactly forward
+        double roll = -30.0 * 3.14159 / 180.0; 
+        // From Z-forward base frame to tilted down cameras is a negative roll
+        B_to_C << 1,  0,          0,         0,    \
+                  0,  cos(roll), sin(roll),  0,    \
+                  0, -sin(roll), cos(roll),  0,    \
+                  0,  0,          0,         1;
+
+        std::vector<cv::Point> modelPts2d_L, modelPts2d_R; // points of model in images
+        // draw model vertices in both current images
+        for(unsigned int i = 0 ; i < modelPoints.size(); i++) {
+            Eigen::Vector4d cube_vert;
+            cube_vert.block<3,1>(0,0) = 2000.0*modelPoints[i];
+            cube_vert(0, 0) += 5000;
+            cube_vert(1, 0) -= 3500;
+            cube_vert(3, 0) = 1; // homogenous
+            
+            cube_vert = B_to_C * (W_to_B * cube_vert); // place vertex in reference frame of camera
+
+            cv::Mat world_pt_homog = cv::Mat_<double>(4,1);
+            world_pt_homog.at<double>(0,0) = cube_vert(0,0);
+            world_pt_homog.at<double>(1,0) = cube_vert(1,0);
+            world_pt_homog.at<double>(2,0) = cube_vert(2,0);
+            world_pt_homog.at<double>(3,0) = cube_vert(3,0);
+            cv::Mat im_pt_homog_L = Pl * world_pt_homog;
+            im_pt_homog_L /= im_pt_homog_L.at<double>(2,0);
+            cv::Mat im_pt_homog_R = Pr * world_pt_homog;
+            im_pt_homog_R /= im_pt_homog_R.at<double>(2,0);
+            cv::Point im_ptL = cv::Point(im_pt_homog_L.at<double>(0,0),
+                                         im_pt_homog_L.at<double>(1,0));
+            cv::Point im_ptR = cv::Point(im_pt_homog_R.at<double>(0,0),
+                                         im_pt_homog_R.at<double>(1,0));
+            modelPts2d_L.push_back(im_ptL);
+            modelPts2d_R.push_back(im_ptR);
+            drawDot(CL_out, im_ptL);
+            drawDot(CR_out, im_ptR);
+        }
+        // draw model edges in both images
+        for(unsigned int i = 0 ; i < modelEdges.size(); i++) {
+            int x = modelEdges[i].first;
+            int y = modelEdges[i].second;
+            drawLine(CL_out, modelPts2d_L[x], modelPts2d_L[y]);
+            drawLine(CR_out, modelPts2d_R[x], modelPts2d_R[y]);
+        }
+        
+        //drawLine(CL_out, cv::Point( 100, 100), cv::Point( 500, 500));
+
         cv::drawKeypoints(PL_mat, good_pts[2], PL_out, cv::Scalar(255, 0, 0), DRK);
         cv::drawKeypoints(PR_mat, good_pts[3], PR_out, cv::Scalar(255, 0, 0), DRK);
         sized_show(CL_out, 0.4, "CURR LEFT");
         sized_show(CR_out, 0.4, "CURR RIGHT");
         sized_show(PL_out, 0.4, "PREV LEFT");
         sized_show(PR_out, 0.4, "PREV RIGHT");
-        cv::waitKey(10);
+        cv::waitKey(0);
     }
     CL_features.copyTo(PL_features);
     CR_features.copyTo(PR_features);
@@ -417,6 +503,13 @@ int main(int argc, char** argv) {
     cv::initModule_nonfree(); // stallman hates me
 
     std::cout << "\nInitialized program, using " << feature_type << " features.\n";
+
+    OBJParser p = OBJParser("models/cube.obj");
+    if(p.readFile()) {
+        sp.modelPoints = p.getVerts();
+        p.generateMeshEdges();
+        sp.modelEdges = p.getEdges();
+    }
 
     if(argc >= 2) { // If given a bag file to parse
         std::vector<std::string> topics;
