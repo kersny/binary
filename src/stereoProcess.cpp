@@ -365,11 +365,11 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
 	double maxRatio = 0;
 	int iter = 0;
         std::vector<Eigen::Vector3d> pts1_all, pts2_all; // all inliers
+        std::vector<int> indices;
+        for (unsigned int i = 0; i < good_pts[0].size(); i++) {
+            indices.push_back(i);
+        }
 	while (iter < 250) {
-	    std::vector<int> indices;
-	    for (unsigned int i = 0; i < good_pts[0].size(); i++) {
-		indices.push_back(i);
-	    }
 	    std::random_shuffle(indices.begin(), indices.end());
 	    std::vector<Eigen::Vector3d> pts1,pts2;
 	    for (unsigned int i = 0; i < 3; i++) {
@@ -382,10 +382,14 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
 	    int inlierCount = 0;
 	    std::vector<int> inliers;
 	    for (unsigned int i = 0; i < good_pts[0].size(); i++) {
-		if (((ans.first*(pts3_now[i]) + ans.second) - pts3_prev[i]).squaredNorm() < 1000.0) {
+                Eigen::Vector3d transformed_pt_now;
+                transformed_pt_now = ((ans.first * (pts3_now[i])) + ans.second);
+                double err_norm = (transformed_pt_now - pts3_prev[i]).norm();
+		if (err_norm < 10.0) { // 1 cm distance tolerance
 		    inliers.push_back(i);
 		    inlierCount++;
 		}
+
 	    }
 	    double inlierRatio = ((double)inlierCount)/((double)pts3_prev.size());
 	    if (inlierRatio > maxRatio) {
