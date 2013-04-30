@@ -45,6 +45,7 @@ class StereoProcess {
     private:
         Eigen::Matrix<double, 3, 1> position;
         Eigen::Matrix3d orientation;
+        Eigen::Vector3d modelOrigin;
 
         std::vector<cv::KeyPoint> PL_kps, PR_kps;
         cv::Mat PL_features, PR_features;

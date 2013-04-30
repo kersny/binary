@@ -29,6 +29,8 @@ class OBJParser {
                 if (3 == sscanf(line.c_str(), "v %lf, %lf, %lf", &x, &y, &z)) {
                     Eigen::Vector3d pt = Eigen::Vector3d(x, y, z);
                     verts.push_back(pt);
+                } else if(line.length() < 2) {
+                    continue;
                 } else {
                     if(line.at(0) == 'f') { // list of vertices constituting the face to follow
                         std::string cur_face;

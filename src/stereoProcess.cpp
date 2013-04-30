@@ -40,6 +40,7 @@ StereoProcess::StereoProcess() {
     max_im_pairs = 20;
     position = Eigen::Vector3d::Zero();
     orientation = Eigen::Matrix3d::Identity();
+    modelOrigin = Eigen::Vector3d(3000, 0, 0);
 }
 
 std::vector<cv::KeyPoint> StereoProcess::get_keypoints(cv::Mat img) {
@@ -422,33 +423,42 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
         cv::Mat CR_out(CR_mat.size(), CV_8UC3);
         cv::cvtColor(CR_mat, CR_out, CV_GRAY2RGB);
 
-        Eigen::MatrixXd W_to_B(4,4); // W is world frame, B is z-forward camera basis
-        W_to_B << 0, -1,  0, 0,    \
-                  0,  0, -1, 2000,\
-                  1,  0,  0, 0,    \
-                  0,  0,  0, 1;
+        Eigen::Matrix4d B_from_W; // W is world frame, B is z-forward camera basis
+        B_from_W << 0, -1,  0, 0,    \
+                    0,  0, -1, 2000, \
+                    1,  0,  0, 0,    \
+                    0,  0,  0, 1;
         // negative y -> positive x
         // negative z -> positive y
         // positive x -> positive z
+        // camera is roughly 2m (2000 mm) above ground
 
-        Eigen::MatrixXd B_to_C(4,4); // B is frame of cameras with Z exactly forward
+        Eigen::Matrix4d CI_from_B; // B is frame of cameras with Z exactly forward
+        // CI is initial frame of the cameras
         double roll = -30.0 * 3.14159 / 180.0; 
         // From Z-forward base frame to tilted down cameras is a negative roll
-        B_to_C << 1,  0,          0,         0,    \
-                  0,  cos(roll), sin(roll),  0,    \
-                  0, -sin(roll), cos(roll),  0,    \
-                  0,  0,          0,         1;
+        CI_from_B << 1,  0,          0,          0,    \
+                     0,  cos(roll),  sin(roll),  0,    \
+                     0, -sin(roll),  cos(roll),  0,    \
+                     0,  0,          0,          1;
 
         std::vector<cv::Point> modelPts2d_L, modelPts2d_R; // points of model in images
-        // draw model vertices in both current images
+        // compute vertices porjections in both current images
         for(unsigned int i = 0 ; i < modelPoints.size(); i++) {
             Eigen::Vector4d cube_vert;
-            cube_vert.block<3,1>(0,0) = 2000.0*modelPoints[i];
-            cube_vert(0, 0) += 5000;
-            cube_vert(1, 0) -= 3500;
+            cube_vert.block<3,1>(0,0) = modelPoints[i]; // 1m cube
+            cube_vert.block<3,1>(0,0) += modelOrigin;
             cube_vert(3, 0) = 1; // homogenous
-            
-            cube_vert = B_to_C * (W_to_B * cube_vert); // place vertex in reference frame of camera
+            // place vertex in reference frame of initial camera
+            cube_vert = CI_from_B * (B_from_W * cube_vert); 
+            // translate to compensate for motion of the camera position DOESNT WORK YET(?)
+            // cube_vert(0, 0) -= position(0, 0);
+            // cube_vert(1, 0) -= position(1, 0);
+            // cube_vert(2, 0) -= position(2, 0);
+            // // adjust camera for current orientation
+            // Eigen::Matrix4d cur_orientH = Eigen::Matrix4d::Zero();
+            // cur_orientH.block<3,3>(0,0) = orientation;
+            // cube_vert = cur_orientH * cube_vert;
 
             cv::Mat world_pt_homog = cv::Mat_<double>(4,1);
             world_pt_homog.at<double>(0,0) = cube_vert(0,0);
@@ -465,8 +475,6 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
                                          im_pt_homog_R.at<double>(1,0));
             modelPts2d_L.push_back(im_ptL);
             modelPts2d_R.push_back(im_ptR);
-            drawDot(CL_out, im_ptL);
-            drawDot(CR_out, im_ptR);
         }
         // draw model edges in both images
         for(unsigned int i = 0 ; i < modelEdges.size(); i++) {
@@ -474,6 +482,10 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
             int y = modelEdges[i].second;
             drawLine(CL_out, modelPts2d_L[x], modelPts2d_L[y]);
             drawLine(CR_out, modelPts2d_R[x], modelPts2d_R[y]);
+        }
+        for(unsigned int i = 0 ; i < modelPts2d_L.size(); i++) {
+            drawDot(CL_out, modelPts2d_L[i]);
+            drawDot(CR_out, modelPts2d_R[i]);
         }
         
         //drawLine(CL_out, cv::Point( 100, 100), cv::Point( 500, 500));
@@ -484,7 +496,23 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
         sized_show(CR_out, 0.4, "CURR RIGHT");
         sized_show(PL_out, 0.4, "PREV LEFT");
         sized_show(PR_out, 0.4, "PREV RIGHT");
-        cv::waitKey(0);
+        int delay = 100;
+        char input = cv::waitKey(delay);
+        if(delay >= 100) { // Laggy game mode!
+            if(input == 'w') {
+                modelOrigin(0,0) += 100;
+            } else if(input == 's') {
+                modelOrigin(0,0) -= 100;
+            } else if(input == 'a') {
+                modelOrigin(1,0) += 100;
+            } else if(input == 'd') {
+                modelOrigin(1,0) -= 100;
+            } else if(input == 'x') {
+                modelOrigin(2,0) -= 100;
+            } else if(input == 32) { // space bar
+                modelOrigin(2,0) += 100;
+            }
+        }
     }
     CL_features.copyTo(PL_features);
     CR_features.copyTo(PR_features);
