@@ -8,11 +8,9 @@
 #include <cmath>
 #include <algorithm>
 
-#include <unsupported/Eigen/NonLinearOptimization>
-
 #define DRK cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS
 
-std::string feature_type = "SURF"; // options: "SIFT", "SURF", etc
+std::string feature_type = "SIFT"; // options: "SIFT", "SURF", etc
 Eigen::Vector3d triangulatePoint(cv::Mat Pl,cv::Mat Pr,cv::Point2f left_point,cv::Point2f right_point)
 {
     Eigen::Matrix<double,3,4> Ple,Pre;
@@ -54,7 +52,7 @@ std::vector<cv::KeyPoint> StereoProcess::get_keypoints(cv::Mat img) {
 }
 
 cv::Mat StereoProcess::extract_features(cv::Mat img,
-                                        std::vector<cv::KeyPoint> kps)
+        std::vector<cv::KeyPoint> kps)
 {
     // Extract features
     debug_print("Extracting features.\n", 3);
@@ -130,8 +128,8 @@ int StereoProcess::find_kp(std::vector<int> q_idxs, int x) {
 // Get only keypoints that match correctly across keypoint sets from n images
 //  given keypoints and corresponding features from all frames
     std::vector< std::vector<cv::KeyPoint> >
-    StereoProcess::get_circular_matches(std::vector< std::vector<cv::KeyPoint> > all_pts,
-                                        std::vector< cv::Mat> all_features)
+StereoProcess::get_circular_matches(std::vector< std::vector<cv::KeyPoint> > all_pts,
+        std::vector< cv::Mat> all_features)
 {
     unsigned int n = all_pts.size();
     // Get n cycle matches 0->1 , 1->2, ... (n-1)->0
@@ -157,7 +155,7 @@ int StereoProcess::find_kp(std::vector<int> q_idxs, int x) {
     for(unsigned int i = 0; i < cycle_matches[0].size(); i++) {
         // The query index of a found point in a cyclic match
         //  for each of the original keypoint sets
-	std::vector< int > kp_qidxs;
+        std::vector< int > kp_qidxs;
         kp_qidxs.reserve(n);
         int start_query_val = cycle_matches[0][i].queryIdx;
         kp_qidxs[0] = start_query_val;
@@ -193,8 +191,8 @@ int StereoProcess::find_kp(std::vector<int> q_idxs, int x) {
 // Takes the left and right image, and ordered matching keypoints from each
 //  and produces the stiched together monocular version of the stereo images
 cv::Mat make_mono_image(cv::Mat L_mat, cv::Mat R_mat,
-                      std::vector<cv::KeyPoint> L_kps,
-                      std::vector<cv::KeyPoint> R_kps)
+        std::vector<cv::KeyPoint> L_kps,
+        std::vector<cv::KeyPoint> R_kps)
 {
     std::vector<cv::Point2f> L_pts;
     std::vector<cv::Point2f> R_pts;
@@ -213,7 +211,7 @@ cv::Mat make_mono_image(cv::Mat L_mat, cv::Mat R_mat,
     cv::Mat stiched(L_mat.rows, L_mat.cols, CV_8UC1);
     int blend_dist = 100; // 1/2 the width of blending area in center
     cv::Rect L_good_ROI(L_mat.cols / 2 + blend_dist, 0,
-                        L_mat.cols / 2 - blend_dist, L_mat.rows);
+            L_mat.cols / 2 - blend_dist, L_mat.rows);
     cv::Rect R_good_ROI(0, 0, R_mat.cols / 2 - blend_dist, R_mat.rows);
     cv::Mat partLW = cv::Mat(L_warped, L_good_ROI);
     cv::Mat partR = cv::Mat(R_mat, R_good_ROI);
@@ -221,7 +219,7 @@ cv::Mat make_mono_image(cv::Mat L_mat, cv::Mat R_mat,
     partR.copyTo(stiched(R_good_ROI));
 
     cv::Rect blend_ROI(L_mat.cols / 2 - blend_dist, 0,
-                       2 * blend_dist, L_mat.rows);
+            2 * blend_dist, L_mat.rows);
     cv::Mat midLW(L_warped, blend_ROI);
     cv::Mat midR(R_mat, blend_ROI);
 
@@ -238,20 +236,20 @@ std::pair<Eigen::Matrix3d,Eigen::Vector3d> computeOrientation(std::vector<Eigen:
     now_avg << 0.0,0.0,0.0;
     prev_avg << 0.0,0.0,0.0;
     for (unsigned int i = 0; i < pts1.size(); i++) {
-	now_avg += pts1[i];
-	prev_avg += pts2[i];
+        now_avg += pts1[i];
+        prev_avg += pts2[i];
     }
     Eigen::Vector3d centroid_now = now_avg/pts1.size();
     Eigen::Vector3d centroid_prev = prev_avg/pts1.size();
     Eigen::Matrix3d cov = Eigen::Matrix3d::Zero();
     for (unsigned int i = 0; i < pts1.size(); i++) {
-	cov += (pts1[i] - centroid_now)*((pts2[i] - centroid_prev).transpose());
+        cov += (pts1[i] - centroid_now)*((pts2[i] - centroid_prev).transpose());
     }
     Eigen::JacobiSVD<Eigen::Matrix3d> cov_svd(cov, Eigen::ComputeFullU | Eigen::ComputeFullV);
-    //Eigen::Matrix3d R = cov_svd.matrixV()*(cov_svd.matrixU().transpose());
-    Eigen::Matrix3d R = cov_svd.matrixU()*(cov_svd.matrixV().transpose());
+    Eigen::Matrix3d R = cov_svd.matrixV()*(cov_svd.matrixU().transpose());
+    //Eigen::Matrix3d R = cov_svd.matrixU()*(cov_svd.matrixV().transpose());
     if (R.determinant() < 0) {
-	R.col(2) = -1*R.col(2);
+        R.col(2) = -1*R.col(2);
     }
     Eigen::Vector3d trans = -R*centroid_now + centroid_prev;
     return std::make_pair(R,trans);
@@ -273,7 +271,7 @@ void drawDot( cv::Mat img, cv::Point center )
 {
     int thickness = -1;
     int lineType = 8;
-   
+
     cv::circle( img,
             center,
             10.0,
@@ -282,8 +280,8 @@ void drawDot( cv::Mat img, cv::Point center )
 }
 
 void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
-                                    const cv::Mat& CR_mat,
-                                    ros::Time c_time)
+        const cv::Mat& CR_mat,
+        ros::Time c_time)
 {
     std::ostringstream os;
     os << "Processing image pair with timestamp: " << c_time << std::endl;
@@ -292,16 +290,16 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
     std::vector<cv::KeyPoint> CL_kps, CR_kps;
     cv::Mat CL_features, CR_features;
 
-    #pragma omp parallel
+#pragma omp parallel
     {
-        #pragma omp sections
+#pragma omp sections
         {
-            #pragma omp section
+#pragma omp section
             {
                 CL_kps = get_keypoints(CL_mat);
                 CL_features = extract_features(CL_mat, CL_kps);
             }
-            #pragma omp section
+#pragma omp section
             {
                 CR_kps = get_keypoints(CR_mat);
                 CR_features = extract_features(CR_mat, CR_kps);
@@ -317,37 +315,37 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
     // Do not find triple-matches on first image pair
     //  or if no features found.
     if(CL_kps.size() == 0 || CR_kps.size() == 0 ||
-       PL_kps.size() == 0 || PR_kps.size() == 0 )
+            PL_kps.size() == 0 || PR_kps.size() == 0 )
     {
         std::cout << "Error! Not enough keypoints!";
     } else {
-	std::vector< std::vector<cv::KeyPoint> > all_pts;
+        std::vector< std::vector<cv::KeyPoint> > all_pts;
         all_pts.push_back(CL_kps);
         all_pts.push_back(CR_kps);
         all_pts.push_back(PL_kps);
         all_pts.push_back(PR_kps);
-	std::vector<cv::Mat> all_fts;
+        std::vector<cv::Mat> all_fts;
         all_fts.push_back(CL_features);
         all_fts.push_back(CR_features);
         all_fts.push_back(PL_features);
         all_fts.push_back(PR_features);
-	std::vector< std::vector<cv::KeyPoint> > good_pts;
+        std::vector< std::vector<cv::KeyPoint> > good_pts;
         good_pts = get_circular_matches(all_pts, all_fts);
         std::cout << "GoodPoints size: " << good_pts[0].size() << "\n";
 
-	cv::Mat Kl = (cv::Mat_<double>(3,3) << 1107.58877335145,0,703.563442850518,0,1105.93566117489,963.193789785819,0,0,1);
-	cv::Mat Kr = (cv::Mat_<double>(3,3) << 1104.28764692449,0,761.642398493953,0,1105.31682336766,962.344514230255,0,0,1);
-	//cv::Mat C = (cv::Mat_<double>(3,4) << 1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0);
-	//cv::Mat PoseL = (cv::Mat_<double>(4,4) << 1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0);
-	cv::Mat Ldist_coeff = (cv::Mat_<double>(1,5) << -0.0305748283698362, 0.0530084757712889, 0.00198169725147652, 0.0013820669430398, 0);
-	cv::Mat Rdist_coeff = (cv::Mat_<double>(1,5) << -0.0243498347962812, 0.0447656953196109, 0.0026529511902253, 0.00225483859237588, 0);
-	cv::Mat Pl = (cv::Mat_<double>(3,4) << 1107.58877335145, 0, 703.563442850518, 0, 0, 1105.93566117489, 963.193789785819, 0, 0, 0, 1, 0);
-	cv::Mat Pr = (cv::Mat_<double>(3,4) << 1105.57021914223,6.18934957543074,759.754258185686,-612760.0875376,9.71869909913803, 1123.12983099782,941.444195743573,-1240.37638207625, 0.001724650725893,0.0187425606411105,0.999822855310123,-0.789271765090486);
-	std::vector<Eigen::Vector3d> pts3_now, pts3_prev;
-	std::vector<cv::Point2f> prev_left_points_d, prev_right_points_d,
-                                 left_points_d, right_points_d,
-                                 prev_left_points, prev_right_points,
-                                 left_points, right_points;
+        cv::Mat Kl = (cv::Mat_<double>(3,3) << 1107.58877335145,0,703.563442850518,0,1105.93566117489,963.193789785819,0,0,1);
+        cv::Mat Kr = (cv::Mat_<double>(3,3) << 1104.28764692449,0,761.642398493953,0,1105.31682336766,962.344514230255,0,0,1);
+        //cv::Mat C = (cv::Mat_<double>(3,4) << 1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0);
+        //cv::Mat PoseL = (cv::Mat_<double>(4,4) << 1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0);
+        cv::Mat Ldist_coeff = (cv::Mat_<double>(1,5) << -0.0305748283698362, 0.0530084757712889, 0.00198169725147652, 0.0013820669430398, 0);
+        cv::Mat Rdist_coeff = (cv::Mat_<double>(1,5) << -0.0243498347962812, 0.0447656953196109, 0.0026529511902253, 0.00225483859237588, 0);
+        cv::Mat Pl = (cv::Mat_<double>(3,4) << 1107.58877335145, 0, 703.563442850518, 0, 0, 1105.93566117489, 963.193789785819, 0, 0, 0, 1, 0);
+        cv::Mat Pr = (cv::Mat_<double>(3,4) << 1105.57021914223,6.18934957543074,759.754258185686,-612760.0875376,9.71869909913803, 1123.12983099782,941.444195743573,-1240.37638207625, 0.001724650725893,0.0187425606411105,0.999822855310123,-0.789271765090486);
+        std::vector<Eigen::Vector3d> pts3_now, pts3_prev;
+        std::vector<cv::Point2f> prev_left_points_d, prev_right_points_d,
+            left_points_d, right_points_d,
+            prev_left_points, prev_right_points,
+            left_points, right_points;
         for (unsigned int i = 0; i < good_pts[0].size(); i++) {
             left_points_d.push_back( good_pts[0][i].pt);
             right_points_d.push_back( good_pts[1][i].pt);
@@ -384,7 +382,7 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
 	    int inlierCount = 0;
 	    std::vector<int> inliers;
 	    for (unsigned int i = 0; i < good_pts[0].size(); i++) {
-		if (((ans.first*(pts3_now[i]) + ans.second) - pts3_prev[i]).squaredNorm() < 60.0) {
+		if (((ans.first*(pts3_now[i]) + ans.second) - pts3_prev[i]).squaredNorm() < 1000.0) {
 		    inliers.push_back(i);
 		    inlierCount++;
 		}
@@ -393,24 +391,24 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
 	    if (inlierRatio > maxRatio) {
 		pts1_all.clear();
                 pts2_all.clear();
-		for (unsigned int i = 0; i < inliers.size(); i++) {
-		    pts1_all.push_back(pts3_now[inliers[i]]);
-		    pts2_all.push_back(pts3_prev[inliers[i]]);
-		}
-		maxRatio = inlierRatio;
-	    }
-	    iter++;
-	}
+                for (unsigned int i = 0; i < inliers.size(); i++) {
+                    pts1_all.push_back(pts3_now[inliers[i]]);
+                    pts2_all.push_back(pts3_prev[inliers[i]]);
+                }
+                maxRatio = inlierRatio;
+            }
+            iter++;
+        }
         std::pair<Eigen::Matrix3d,Eigen::Vector3d> ans = computeOrientation(pts1_all, pts2_all);
         Eigen::Matrix3d R_final = Eigen::Matrix3d::Zero();
         Eigen::Vector3d T_final = Eigen::Vector3d::Zero();
         R_final = ans.first;
         T_final = ans.second;
-	std::cout << "Inlier Ratio: " << maxRatio << std::endl;
-	position += T_final;
-	orientation = R_final * orientation;
+        std::cout << "Inlier Ratio: " << maxRatio << std::endl;
+        position += T_final;
+        orientation = R_final * orientation;
         std::cout << "Cur Rotation: \n" << R_final << std::endl << "dT: \n" << T_final << std::endl;
-	std::cout << "Pose: \n" << orientation << std::endl << "T: \n" << position << std::endl;
+        std::cout << "Pose: \n" << orientation << std::endl << "T: \n" << position << std::endl;
 
         //cv::Mat stiched = make_mono_image(CL_mat, CR_mat, good_pts[0], good_pts[1]);
         //sized_show(stiched, 0.25, "MONO IMAGE");
@@ -435,7 +433,7 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
 
         Eigen::Matrix4d CI_from_B; // B is frame of cameras with Z exactly forward
         // CI is initial frame of the cameras
-        double roll = -30.0 * 3.14159 / 180.0; 
+        double roll = -30.0 * 3.14159 / 180.0;
         // From Z-forward base frame to tilted down cameras is a negative roll
         CI_from_B << 1,  0,          0,          0,    \
                      0,  cos(roll),  sin(roll),  0,    \
@@ -450,7 +448,7 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
             cube_vert.block<3,1>(0,0) += modelOrigin;
             cube_vert(3, 0) = 1; // homogenous
             // place vertex in reference frame of initial camera
-            cube_vert = CI_from_B * (B_from_W * cube_vert); 
+            cube_vert = CI_from_B * (B_from_W * cube_vert);
             // translate to compensate for motion of the camera position DOESNT WORK YET(?)
             // cube_vert(0, 0) -= position(0, 0);
             // cube_vert(1, 0) -= position(1, 0);
@@ -487,7 +485,7 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
             drawDot(CL_out, modelPts2d_L[i]);
             drawDot(CR_out, modelPts2d_R[i]);
         }
-        
+
         //drawLine(CL_out, cv::Point( 100, 100), cv::Point( 500, 500));
 
         cv::drawKeypoints(PL_mat, good_pts[2], PL_out, cv::Scalar(255, 0, 0), DRK);
@@ -529,6 +527,8 @@ int main(int argc, char** argv) {
     StereoProcess sp;
 
     cv::initModule_nonfree(); // stallman hates me
+    std::srand((unsigned)std::time(0));
+
 
     std::cout << "\nInitialized program, using " << feature_type << " features.\n";
 
@@ -554,9 +554,9 @@ int main(int argc, char** argv) {
         mf::Subscriber<sm::Image> R_sub(nh, sp.R_channel, 1);
         typedef mf::sync_policies::ApproximateTime<sm::Image, sm::Image> MySyncPolicy;
         mf::Synchronizer<MySyncPolicy> sync( \
-            MySyncPolicy(sp.max_im_pairs), L_sub, R_sub);
+                MySyncPolicy(sp.max_im_pairs), L_sub, R_sub);
         sync.registerCallback(
-            boost::bind(&StereoProcess::im_pair_callback, &sp, _1, _2));
+                boost::bind(&StereoProcess::im_pair_callback, &sp, _1, _2));
 
         ros::spin();
     }
