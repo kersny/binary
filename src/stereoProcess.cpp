@@ -366,7 +366,7 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
 	int iter = 0;
         std::vector<Eigen::Vector3d> pts1_all, pts2_all; // all inliers
 	while (iter < 250) {
-	    std::vector<int> indices(good_pts[0].size());
+	    std::vector<int> indices;
 	    for (unsigned int i = 0; i < good_pts[0].size(); i++) {
 		indices.push_back(i);
 	    }
@@ -494,7 +494,7 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
         sized_show(CR_out, 0.4, "CURR RIGHT");
         sized_show(PL_out, 0.4, "PREV LEFT");
         sized_show(PR_out, 0.4, "PREV RIGHT");
-        int delay = 100;
+        int delay = 10;
         char input = cv::waitKey(delay);
         if(delay >= 100) { // Laggy game mode!
             if(input == 'w') {
