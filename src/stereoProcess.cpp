@@ -1,6 +1,7 @@
 #include "stereoProcess.hpp"
 #include "stereoBagParser.cpp"
 #include "OBJParser.hpp"
+#include "odometryMath.hpp"
 
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
@@ -11,26 +12,6 @@
 #define DRK cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS
 
 std::string feature_type = "SIFT"; // options: "SIFT", "SURF", etc
-Eigen::Vector3d triangulatePoint(cv::Mat Pl,cv::Mat Pr,cv::Point2f left_point,cv::Point2f right_point)
-{
-    Eigen::Matrix<double,3,4> Ple,Pre;
-    Eigen::Matrix<double,3,1> lp,rp;
-    lp(0,0) = (double)left_point.x;
-    lp(1,0) = (double)left_point.y;
-    lp(2,0) = 1.0;
-    rp(0,0) = (double)right_point.x;
-    rp(1,0) = (double)right_point.y;
-    rp(2,0) = 1.0;
-    Eigen::Matrix<double,6,4> A;
-    Eigen::Matrix<double,6,1> b;
-    cv::cv2eigen(Pl,Ple);cv::cv2eigen(Pr,Pre);
-    A.block<3,4>(0,0) = Ple;
-    A.block<3,4>(3,0) = Pre;
-    b.block<3,1>(0,0) = lp;
-    b.block<3,1>(3,0) = rp;
-    Eigen::Vector4d result = (A.transpose()*A).inverse()*(A.transpose()*b);
-    return result.block<3,1>(0,0) / result(3,0);
-}
 
 StereoProcess::StereoProcess() {
     L_channel = "/stereo/left/image_raw";
@@ -230,31 +211,6 @@ cv::Mat make_mono_image(cv::Mat L_mat, cv::Mat R_mat,
     return stiched;
 }
 
-std::pair<Eigen::Matrix3d,Eigen::Vector3d> computeOrientation(std::vector<Eigen::Vector3d> pts1, std::vector<Eigen::Vector3d> pts2)
-{
-    Eigen::Vector3d now_avg,prev_avg;
-    now_avg << 0.0,0.0,0.0;
-    prev_avg << 0.0,0.0,0.0;
-    for (unsigned int i = 0; i < pts1.size(); i++) {
-        now_avg += pts1[i];
-        prev_avg += pts2[i];
-    }
-    Eigen::Vector3d centroid_now = now_avg/pts1.size();
-    Eigen::Vector3d centroid_prev = prev_avg/pts1.size();
-    Eigen::Matrix3d cov = Eigen::Matrix3d::Zero();
-    for (unsigned int i = 0; i < pts1.size(); i++) {
-        cov += (pts1[i] - centroid_now)*((pts2[i] - centroid_prev).transpose());
-    }
-    Eigen::JacobiSVD<Eigen::Matrix3d> cov_svd(cov, Eigen::ComputeFullU | Eigen::ComputeFullV);
-    Eigen::Matrix3d R = cov_svd.matrixV()*(cov_svd.matrixU().transpose());
-    //Eigen::Matrix3d R = cov_svd.matrixU()*(cov_svd.matrixV().transpose());
-    if (R.determinant() < 0) {
-        R.col(2) = -1*R.col(2);
-    }
-    Eigen::Vector3d trans = -R*centroid_now + centroid_prev;
-    return std::make_pair(R,trans);
-}
-
 
 ///////
 void drawLine( cv::Mat img, cv::Point start, cv::Point end )
@@ -362,53 +318,11 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
 	    pts3_now.push_back(pt_now);
 	    pts3_prev.push_back(pt_prev);
 	}
-	double maxRatio = 0;
-	int iter = 0;
-        std::vector<Eigen::Vector3d> pts1_all, pts2_all; // all inliers
-        std::vector<int> indices;
-        for (unsigned int i = 0; i < good_pts[0].size(); i++) {
-            indices.push_back(i);
-        }
-	while (iter < 250) {
-	    std::random_shuffle(indices.begin(), indices.end());
-	    std::vector<Eigen::Vector3d> pts1,pts2;
-	    for (unsigned int i = 0; i < 3; i++) {
-		pts1.push_back(pts3_now[indices[i]]);
-		pts2.push_back(pts3_prev[indices[i]]);
-	    }
-
-	    std::pair<Eigen::Matrix3d,Eigen::Vector3d> ans = computeOrientation(pts1, pts2);
-
-	    int inlierCount = 0;
-	    std::vector<int> inliers;
-	    for (unsigned int i = 0; i < good_pts[0].size(); i++) {
-                Eigen::Vector3d transformed_pt_now;
-                transformed_pt_now = ((ans.first * (pts3_now[i])) + ans.second);
-                double err_norm = (transformed_pt_now - pts3_prev[i]).norm();
-		if (err_norm < 10.0) { // 1 cm distance tolerance
-		    inliers.push_back(i);
-		    inlierCount++;
-		}
-
-	    }
-	    double inlierRatio = ((double)inlierCount)/((double)pts3_prev.size());
-	    if (inlierRatio > maxRatio) {
-		pts1_all.clear();
-                pts2_all.clear();
-                for (unsigned int i = 0; i < inliers.size(); i++) {
-                    pts1_all.push_back(pts3_now[inliers[i]]);
-                    pts2_all.push_back(pts3_prev[inliers[i]]);
-                }
-                maxRatio = inlierRatio;
-            }
-            iter++;
-        }
-        std::pair<Eigen::Matrix3d,Eigen::Vector3d> ans = computeOrientation(pts1_all, pts2_all);
+        std::pair<Eigen::Matrix3d,Eigen::Vector3d> ans = computeOrientationRansac(pts3_now, pts3_prev);
         Eigen::Matrix3d R_final = Eigen::Matrix3d::Zero();
         Eigen::Vector3d T_final = Eigen::Vector3d::Zero();
         R_final = ans.first;
         T_final = ans.second;
-        std::cout << "Inlier Ratio: " << maxRatio << std::endl;
         position += T_final;
         orientation = R_final * orientation;
         std::cout << "Cur Rotation: \n" << R_final << std::endl << "dT: \n" << T_final << std::endl;

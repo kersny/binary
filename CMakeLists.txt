@@ -25,12 +25,18 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 rosbuild_add_executable(BINary src/stereoSubscriber.cpp
                                src/stereoProcess.cpp
                                src/utilities.cpp
-                               src/stereoBagParser.cpp)
+                               src/stereoBagParser.cpp
+                               src/odometryMath.cpp)
 
 rosbuild_add_boost_directories()
 rosbuild_link_boost(BINary thread system signals)
 
 rosbuild_add_openmp_flags(BINary)
+
+rosbuild_add_gtest(test/testMath test/testMath.cpp
+    src/odometryMath.cpp
+                                   src/utilities.cpp)
+rosbuild_link_boost(test/testMath thread system signals)
 
 #common commands for building c++ executables and libraries
 #rosbuild_add_library(${PROJECT_NAME} src/example.cpp)
