@@ -317,8 +317,6 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
 	for (unsigned int i = 0; i < left_points_d.size(); i++) {
 	    Eigen::Vector3d pt_now = triangulatePoint(Pl,Pr,left_points_d[i],right_points_d[i]);
             Eigen::Vector3d pt_prev = triangulatePoint(Pl,Pr,prev_left_points_d[i],prev_right_points_d[i]);
-            std::cout << pt_now << std::endl << std::endl;
-            std::cout << pt_prev << std::endl << std::endl << std::endl;
 	    pts3_now.push_back(pt_now);
 	    pts3_prev.push_back(pt_prev);
 	}

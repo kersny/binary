@@ -1,7 +1,8 @@
 #include "odometryMath.hpp"
+#include <iomanip>
 #include <opencv2/core/eigen.hpp>
 
-Eigen::Vector3d triangulatePoint_linear(Eigen::Matrix<double, 3, 4> Pl,Eigen::Matrix<double, 3, 4> Pr,Eigen::Vector2d left_point,Eigen::Vector2d right_point)
+Eigen::Vector3d triangulatePoint_linear_me(Eigen::Matrix<double, 3, 4> Pl,Eigen::Matrix<double, 3, 4> Pr,Eigen::Vector2d left_point,Eigen::Vector2d right_point)
 {
     Eigen::Matrix<double,6,4> A;
     Eigen::Matrix<double,6,1> b;
@@ -16,7 +17,7 @@ Eigen::Vector3d triangulatePoint_linear(Eigen::Matrix<double, 3, 4> Pl,Eigen::Ma
     Eigen::Vector4d result = pt_svd.solve(b);
     return result.block<3,1>(0,0) / result(3,0);
 }
-Eigen::Vector3d triangulatePoint_linearhartley(Eigen::Matrix<double, 3, 4> Pl,Eigen::Matrix<double, 3, 4> Pr,Eigen::Vector2d left_point,Eigen::Vector2d right_point)
+Eigen::Vector3d triangulatePoint_linear_ls(Eigen::Matrix<double, 3, 4> Pl,Eigen::Matrix<double, 3, 4> Pr,Eigen::Vector2d left_point,Eigen::Vector2d right_point)
 {
     Eigen::Matrix<double,4, 3> A;
     Eigen::Matrix<double, 4, 1> b;
@@ -29,23 +30,45 @@ Eigen::Vector3d triangulatePoint_linearhartley(Eigen::Matrix<double, 3, 4> Pl,Ei
     Eigen::JacobiSVD<Eigen::Matrix<double, 4, 3> > pt_svd(A, Eigen::ComputeFullU | Eigen::ComputeFullV);
     return pt_svd.solve(b);
 }
-Eigen::Vector3d triangulatePoint_linearhatem(Eigen::Matrix<double, 3, 4> Pl,Eigen::Matrix<double, 3, 4> Pr,Eigen::Vector2d left_point,Eigen::Vector2d right_point)
+Eigen::Vector3d triangulatePoint_linear_eigen(Eigen::Matrix<double, 3, 4> Pl,Eigen::Matrix<double, 3, 4> Pr,Eigen::Vector2d left_point,Eigen::Vector2d right_point, double wl = 1.0, double wr = 1.0)
 {
     Eigen::Matrix<double, 4, 4> A;
-    A << left_point(0)*Pl.row(2) - Pl.row(0), left_point(1)*Pl.row(2) - Pl.row(1),
-         right_point(0)*Pr.row(2) - Pr.row(0), right_point(1)*Pr.row(2) - Pr.row(1);
+    A << wl*left_point(0)*Pl.row(2) - Pl.row(0), wl*left_point(1)*Pl.row(2) - Pl.row(1),
+         wr*right_point(0)*Pr.row(2) - Pr.row(0), wr*right_point(1)*Pr.row(2) - Pr.row(1);
     Eigen::JacobiSVD<Eigen::Matrix<double, 4, 4> > pt_svd(A, Eigen::ComputeFullU | Eigen::ComputeFullV);
     Eigen::Vector4d ans = pt_svd.matrixV().col(3);
     return ans.block<3,1>(0,0)/ans(3,0);
 }
 
-Eigen::Vector3d triangulatePoint_nonlinear(cv::Mat Pl,cv::Mat Pr,cv::Point2f left_point,cv::Point2f right_point)
+Eigen::Vector3d triangulatePoint_nonlinear_eigen(Eigen::Matrix<double, 3, 4> Pl,Eigen::Matrix<double, 3, 4> Pr,Eigen::Vector2d left_point,Eigen::Vector2d right_point)
 {
-    Eigen::Matrix<double,3,4> Pl_E,Pr_E;
-    cv::cv2eigen(Pl,Pl_E);cv::cv2eigen(Pr,Pr_E);
-    //Eigen::Matrix<double,2,1> Pl_E,Pr_E;
-    Eigen::Vector3d foo;
-    return foo;
+    Eigen::Vector3d estimate = triangulatePoint_linear_eigen(Pl,Pr,left_point,right_point);
+    std::cout << std::setprecision(15);
+    std::cout << "Initial: " << estimate << std::endl;
+    Eigen::Matrix<double, 4, 1> estimate_homog;
+    estimate_homog << estimate, 1.0;
+    double weight_left = 1.0/(Pl.row(2).dot(estimate_homog));
+    double weight_right = 1.0/(Pr.row(2).dot(estimate_homog));
+    double delta_weight_left = INFINITY;
+    double delta_weight_right = INFINITY;
+    int iters = 0;
+    while (delta_weight_left > 0.0001 && delta_weight_right > 0.0001 && iters < 10) {
+        estimate = triangulatePoint_linear_eigen(Pl,Pr,left_point,right_point,weight_left,weight_right);
+        estimate_homog(0) = estimate(0);
+        estimate_homog(1) = estimate(1);
+        estimate_homog(2) = estimate(2);
+        estimate_homog(3) = 1.0;
+        double new_weight_left = 1.0/(Pl.row(2).dot(estimate_homog));
+        double new_weight_right = 1.0/(Pr.row(2).dot(estimate_homog));
+        delta_weight_left = abs(new_weight_left - weight_left);
+        delta_weight_right = abs(new_weight_right - weight_right);
+        weight_left = new_weight_left;
+        weight_right = new_weight_right;
+        iters++;
+    }
+    std::cout << "Final: " << estimate << std::endl;
+    std::cout << "Nonlinear triangulation iterations:" << iters << std::endl;
+    return estimate;
 }
 Eigen::Vector3d triangulatePoint_cv(cv::Mat Pl,cv::Mat Pr,cv::Point2f left_point,cv::Point2f right_point)
 {
@@ -72,7 +95,7 @@ Eigen::Vector3d triangulatePoint(cv::Mat Pl,cv::Mat Pr,cv::Point2f left_point,cv
     rp(0,0) = (double)right_point.x;
     rp(1,0) = (double)right_point.y;
     cv::cv2eigen(Pl,Ple);cv::cv2eigen(Pr,Pre);
-    return triangulatePoint_linearhatem(Ple,Pre,lp,rp);
+    return triangulatePoint_linear_eigen(Ple,Pre,lp,rp);
 }
 
 std::pair<Eigen::Matrix3d,Eigen::Vector3d> computeOrientation(std::vector<Eigen::Vector3d> pts1, std::vector<Eigen::Vector3d> pts2)
