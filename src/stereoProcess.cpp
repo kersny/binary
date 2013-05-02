@@ -20,6 +20,7 @@ StereoProcess::StereoProcess() {
     position = Eigen::Vector3d::Zero();
     orientation = Eigen::Matrix3d::Identity();
     modelOrigin = Eigen::Vector3d(3000, 0, 0);
+    worldPos = Eigen::Vector3d(0, 0, 0);
 }
 
 std::vector<cv::KeyPoint> StereoProcess::get_keypoints(cv::Mat img) {
@@ -365,7 +366,8 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
         for(unsigned int i = 0 ; i < modelPoints.size(); i++) {
             Eigen::Vector4d cube_vert;
             cube_vert.block<3,1>(0,0) = modelPoints[i]; // 1m cube
-            cube_vert.block<3,1>(0,0) += modelOrigin;
+            cube_vert.block<3,1>(0,0) += modelOrigin; // center to origin
+            cube_vert.block<3,1>(0,0) -= worldPos; // move relative to our real position
             cube_vert(3, 0) = 1; // homogenous
             // place vertex in reference frame of initial camera
             cube_vert = CI_from_B * (B_from_W * cube_vert);
@@ -405,6 +407,11 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
             drawDot(CL_out, modelPts2d_L[i]);
             drawDot(CR_out, modelPts2d_R[i]);
         }
+
+        Eigen::Matrix3d B_from_CI_R = CI_from_B.block<3,3>(0,0).inverse();
+        Eigen::Matrix3d W_from_B_R = B_from_W.block<3,3>(0,0).inverse();
+        worldPos = W_from_B_R * (B_from_CI_R * position);
+        std::cout << "World pos: \n" << worldPos << "\n";
 
         //drawLine(CL_out, cv::Point( 100, 100), cv::Point( 500, 500));
 
