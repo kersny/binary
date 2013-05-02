@@ -1,25 +1,78 @@
 #include "odometryMath.hpp"
 #include <opencv2/core/eigen.hpp>
 
+Eigen::Vector3d triangulatePoint_linear(Eigen::Matrix<double, 3, 4> Pl,Eigen::Matrix<double, 3, 4> Pr,Eigen::Vector2d left_point,Eigen::Vector2d right_point)
+{
+    Eigen::Matrix<double,6,4> A;
+    Eigen::Matrix<double,6,1> b;
+    A.block<3,4>(0,0) = Pl;
+    A.block<3,4>(3,0) = Pr;
+    b.block<2,1>(0,0) = left_point;
+    b(2,0) = 1.0;
+    b.block<2,1>(3,0) = right_point;
+    b(5,0) = 1.0;
+    //Eigen::Vector4d result = (A.transpose()*A).inverse()*(A.transpose()*b);
+    Eigen::JacobiSVD<Eigen::Matrix<double, 6, 4> > pt_svd(A, Eigen::ComputeFullU | Eigen::ComputeFullV);
+    Eigen::Vector4d result = pt_svd.solve(b);
+    return result.block<3,1>(0,0) / result(3,0);
+}
+Eigen::Vector3d triangulatePoint_linearhartley(Eigen::Matrix<double, 3, 4> Pl,Eigen::Matrix<double, 3, 4> Pr,Eigen::Vector2d left_point,Eigen::Vector2d right_point)
+{
+    Eigen::Matrix<double,4, 3> A;
+    Eigen::Matrix<double, 4, 1> b;
+    A << left_point(0)*Pl(2,0)-Pl(0,0),left_point(0)*Pl(2,1)-Pl(0,1),left_point(0)*Pl(2,2)-Pl(0,2),
+         left_point(1)*Pl(2,0)-Pl(1,0),left_point(1)*Pl(2,1)-Pl(0,1),left_point(1)*Pl(2,2)-Pl(1,2),
+         right_point(0)*Pr(2,0)-Pr(0,0),right_point(0)*Pr(2,1)-Pr(0,1),right_point(0)*Pr(2,2)-Pr(0,2),
+         right_point(1)*Pr(2,0)-Pr(1,0),right_point(1)*Pr(2,1)-Pr(0,1),right_point(1)*Pr(2,2)-Pr(1,2);
+    b << -(left_point(0)*Pl(2,3) - Pl(0,3)), -(left_point(1)*Pl(2,3) - Pl(1,3)),
+         -(right_point(0)*Pr(2,3) - Pr(0,3)), -(right_point(1)*Pr(2,3) - Pr(1,3));
+    Eigen::JacobiSVD<Eigen::Matrix<double, 4, 3> > pt_svd(A, Eigen::ComputeFullU | Eigen::ComputeFullV);
+    return pt_svd.solve(b);
+}
+Eigen::Vector3d triangulatePoint_linearhatem(Eigen::Matrix<double, 3, 4> Pl,Eigen::Matrix<double, 3, 4> Pr,Eigen::Vector2d left_point,Eigen::Vector2d right_point)
+{
+    Eigen::Matrix<double, 4, 4> A;
+    A << left_point(0)*Pl.row(2) - Pl.row(0), left_point(1)*Pl.row(2) - Pl.row(1),
+         right_point(0)*Pr.row(2) - Pr.row(0), right_point(1)*Pr.row(2) - Pr.row(1);
+    Eigen::JacobiSVD<Eigen::Matrix<double, 4, 4> > pt_svd(A, Eigen::ComputeFullU | Eigen::ComputeFullV);
+    Eigen::Vector4d ans = pt_svd.matrixV().col(3);
+    return ans.block<3,1>(0,0)/ans(3,0);
+}
+
+Eigen::Vector3d triangulatePoint_nonlinear(cv::Mat Pl,cv::Mat Pr,cv::Point2f left_point,cv::Point2f right_point)
+{
+    Eigen::Matrix<double,3,4> Pl_E,Pr_E;
+    cv::cv2eigen(Pl,Pl_E);cv::cv2eigen(Pr,Pr_E);
+    //Eigen::Matrix<double,2,1> Pl_E,Pr_E;
+    Eigen::Vector3d foo;
+    return foo;
+}
+Eigen::Vector3d triangulatePoint_cv(cv::Mat Pl,cv::Mat Pr,cv::Point2f left_point,cv::Point2f right_point)
+{
+    cv::Mat outp;
+    cv::Mat left_points_m(2,1,CV_64F);
+    cv::Mat right_points_m(2,1,CV_64F);
+    left_points_m.at<double>(0,0) = left_point.x;
+    left_points_m.at<double>(1,0) = left_point.y;
+    right_points_m.at<double>(0,0) = right_point.x;
+    right_points_m.at<double>(1,0) = right_point.y;
+    cv::triangulatePoints(Pl,Pr,left_points_m,right_points_m,outp);
+    Eigen::Vector3d ret;
+    ret << outp.at<double>(0,0)/outp.at<double>(3,0),
+           outp.at<double>(1,0)/outp.at<double>(3,0),
+           outp.at<double>(2,0)/outp.at<double>(3,0);
+    return ret;
+}
 Eigen::Vector3d triangulatePoint(cv::Mat Pl,cv::Mat Pr,cv::Point2f left_point,cv::Point2f right_point)
 {
     Eigen::Matrix<double,3,4> Ple,Pre;
-    Eigen::Matrix<double,3,1> lp,rp;
+    Eigen::Matrix<double,2,1> lp,rp;
     lp(0,0) = (double)left_point.x;
     lp(1,0) = (double)left_point.y;
-    lp(2,0) = 1.0;
     rp(0,0) = (double)right_point.x;
     rp(1,0) = (double)right_point.y;
-    rp(2,0) = 1.0;
-    Eigen::Matrix<double,6,4> A;
-    Eigen::Matrix<double,6,1> b;
     cv::cv2eigen(Pl,Ple);cv::cv2eigen(Pr,Pre);
-    A.block<3,4>(0,0) = Ple;
-    A.block<3,4>(3,0) = Pre;
-    b.block<3,1>(0,0) = lp;
-    b.block<3,1>(3,0) = rp;
-    Eigen::Vector4d result = (A.transpose()*A).inverse()*(A.transpose()*b);
-    return result.block<3,1>(0,0) / result(3,0);
+    return triangulatePoint_linearhatem(Ple,Pre,lp,rp);
 }
 
 std::pair<Eigen::Matrix3d,Eigen::Vector3d> computeOrientation(std::vector<Eigen::Vector3d> pts1, std::vector<Eigen::Vector3d> pts2)

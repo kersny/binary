@@ -292,7 +292,8 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
         cv::Mat Kl = (cv::Mat_<double>(3,3) << 1107.58877335145,0,703.563442850518,0,1105.93566117489,963.193789785819,0,0,1);
         cv::Mat Kr = (cv::Mat_<double>(3,3) << 1104.28764692449,0,761.642398493953,0,1105.31682336766,962.344514230255,0,0,1);
         //cv::Mat C = (cv::Mat_<double>(3,4) << 1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0);
-        //cv::Mat PoseL = (cv::Mat_<double>(4,4) << 1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0);
+        cv::Mat PoseL = (cv::Mat_<double>(4,4) << 1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0);
+        cv::Mat PoseR = (cv::Mat_<double>(4,4) << 1.0000,-0.0073,-0.0016, -554.3483, 0.0073,0.9998,-0.0188,-0.4350, 0.0017,0.0187,0.9998,-0.7893, 0,0,0,1.0000);
         cv::Mat Ldist_coeff = (cv::Mat_<double>(1,5) << -0.0305748283698362, 0.0530084757712889, 0.00198169725147652, 0.0013820669430398, 0);
         cv::Mat Rdist_coeff = (cv::Mat_<double>(1,5) << -0.0243498347962812, 0.0447656953196109, 0.0026529511902253, 0.00225483859237588, 0);
         cv::Mat Pl = (cv::Mat_<double>(3,4) << 1107.58877335145, 0, 703.563442850518, 0, 0, 1105.93566117489, 963.193789785819, 0, 0, 0, 1, 0);
@@ -312,9 +313,12 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
 	cv::undistortPoints(right_points_d, right_points, Kr, Rdist_coeff);
 	cv::undistortPoints(prev_left_points_d, prev_left_points, Kl, Ldist_coeff);
 	cv::undistortPoints(prev_right_points_d, prev_right_points, Kr, Rdist_coeff);
-	for (unsigned int i = 0; i < left_points.size(); i++) {
-	    Eigen::Vector3d pt_now = triangulatePoint(Pl,Pr,left_points[i],right_points[i]);
-	    Eigen::Vector3d pt_prev = triangulatePoint(Pl,Pr,prev_left_points[i],prev_right_points[i]);
+
+	for (unsigned int i = 0; i < left_points_d.size(); i++) {
+	    Eigen::Vector3d pt_now = triangulatePoint(Pl,Pr,left_points_d[i],right_points_d[i]);
+            Eigen::Vector3d pt_prev = triangulatePoint(Pl,Pr,prev_left_points_d[i],prev_right_points_d[i]);
+            std::cout << pt_now << std::endl << std::endl;
+            std::cout << pt_prev << std::endl << std::endl << std::endl;
 	    pts3_now.push_back(pt_now);
 	    pts3_prev.push_back(pt_prev);
 	}
