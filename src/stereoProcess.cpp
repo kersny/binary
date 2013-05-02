@@ -10,8 +10,9 @@
 #include <algorithm>
 
 #define DRK cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS
+#define FEATURE_DETECTOR "SIFT"
+#define DESCRIPTOR_EXTRACTOR "SIFT"
 
-std::string feature_type = "SIFT"; // options: "SIFT", "SURF", etc
 
 StereoProcess::StereoProcess() {
     L_channel = "/stereo/left/image_raw";
@@ -21,13 +22,15 @@ StereoProcess::StereoProcess() {
     orientation = Eigen::Matrix3d::Identity();
     modelOrigin = Eigen::Vector3d(3000, 0, 0);
     worldPos = Eigen::Vector3d(0, 0, 0);
+    std::cout << "Using " << FEATURE_DETECTOR << " Feature Extractor" << std::endl;
+    extractor = cv::DescriptorExtractor::create(FEATURE_DETECTOR);
+    std::cout << "Using " << DESCRIPTOR_EXTRACTOR << " Feature Descriptor" << std::endl;
+    detector = cv::FeatureDetector::create(DESCRIPTOR_EXTRACTOR);
 }
 
 std::vector<cv::KeyPoint> StereoProcess::get_keypoints(cv::Mat img) {
     // Detect keypoints in both images
     debug_print("Detecting keypoints.\n", 3);
-    cv::Ptr<cv::FeatureDetector> detector;
-    detector = cv::FeatureDetector::create(feature_type);
     std::vector<cv::KeyPoint> kps;
     detector->detect(img, kps);
     return kps;
@@ -39,8 +42,6 @@ cv::Mat StereoProcess::extract_features(cv::Mat img,
     // Extract features
     debug_print("Extracting features.\n", 3);
     cv::Mat features;
-    cv::Ptr<cv::DescriptorExtractor> extractor;
-    extractor = cv::DescriptorExtractor::create(feature_type);
     extractor->compute(img, kps, features);
     return features;
 }
@@ -445,48 +446,4 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
     PR_kps = CR_kps;
     CL_mat.copyTo(PL_mat);
     CR_mat.copyTo(PR_mat);
-}
-
-int main(int argc, char** argv) {
-    ros::init(argc, argv, "BINary");
-    ros::NodeHandle nh;
-
-    StereoProcess sp;
-
-    cv::initModule_nonfree(); // stallman hates me
-    std::srand((unsigned)std::time(0));
-
-
-    std::cout << "\nInitialized program, using " << feature_type << " features.\n";
-
-    OBJParser p = OBJParser("models/cube.obj");
-    if(p.readFile()) {
-        sp.modelPoints = p.getVerts();
-        p.generateMeshEdges();
-        sp.modelEdges = p.getEdges();
-    }
-
-    if(argc >= 2) { // If given a bag file to parse
-        std::vector<std::string> topics;
-        topics.push_back(std::string(sp.L_channel));
-        topics.push_back(std::string(sp.R_channel));
-
-        StereoBagParser parser = StereoBagParser(argv[1], topics);
-        sm::ImageConstPtr l_img, r_img;
-        while(ros::ok() && parser.getNext(l_img, r_img)) {
-            sp.im_pair_callback(l_img, r_img);
-        }
-    } else { // In real-time listening mode using subscribers
-        mf::Subscriber<sm::Image> L_sub(nh, sp.L_channel, 1);
-        mf::Subscriber<sm::Image> R_sub(nh, sp.R_channel, 1);
-        typedef mf::sync_policies::ApproximateTime<sm::Image, sm::Image> MySyncPolicy;
-        mf::Synchronizer<MySyncPolicy> sync( \
-                MySyncPolicy(sp.max_im_pairs), L_sub, R_sub);
-        sync.registerCallback(
-                boost::bind(&StereoProcess::im_pair_callback, &sp, _1, _2));
-
-        ros::spin();
-    }
-
-    return 0;
 }

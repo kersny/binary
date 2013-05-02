@@ -26,7 +26,8 @@ rosbuild_add_executable(BINary src/stereoSubscriber.cpp
                                src/stereoProcess.cpp
                                src/utilities.cpp
                                src/stereoBagParser.cpp
-                               src/odometryMath.cpp)
+                               src/odometryMath.cpp
+                               src/binaryMain.cpp)
 
 rosbuild_add_boost_directories()
 rosbuild_link_boost(BINary thread system signals)

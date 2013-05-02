@@ -48,6 +48,9 @@ class StereoProcess {
         Eigen::Matrix3d orientation;
         Eigen::Vector3d modelOrigin;
 
+        cv::Ptr<cv::FeatureDetector> detector;
+        cv::Ptr<cv::DescriptorExtractor> extractor;
+
         std::vector<cv::KeyPoint> PL_kps, PR_kps;
         cv::Mat PL_features, PR_features;
         cv::Mat PL_mat, PR_mat;
