@@ -130,10 +130,11 @@ StereoProcess::get_circular_matches(std::vector< std::vector<cv::KeyPoint> > all
     }
     // Extract only keypoints that can be matched through the whole cycle
     std::vector< std::vector<cv::KeyPoint> > cycle_kps;
+    std::vector<int> weights;
     for(unsigned int x = 0; x < n; x++) {
         // initialize solution vectors
-        std::vector<cv::KeyPoint> tmp;
-        cycle_kps.push_back(tmp);
+        std::vector<cv::KeyPoint> tmpKPv;
+        cycle_kps.push_back(tmpKPv);
     }
     // Loop through all keypoints in image 0 from match 0->1
     for(unsigned int i = 0; i < cycle_matches[0].size(); i++) {
@@ -162,11 +163,14 @@ StereoProcess::get_circular_matches(std::vector< std::vector<cv::KeyPoint> > all
         // if final match ended at original position in image 0
         //  then populate the solution with the matched points
         if(!lost && cur_train_val == start_query_val) {
+            int kp_quality = 0.0;
             for(unsigned int x = 0; x < n; x++) {
                 cv::KeyPoint cur_pt = all_pts[x][ kp_qidxs[x] ];
                 cycle_kps[x].push_back(cur_pt);
-                // TODO: add match weights in
+                kp_quality += cur_pt.response;
             }
+            weights.push_back(-1.0 * kp_quality);
+            // TODO: add match weights in and use keypoint weights
         }
     }
     return cycle_kps;
@@ -292,30 +296,36 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
         good_pts = get_circular_matches(all_pts, all_fts);
         std::cout << "GoodPoints size: " << good_pts[0].size() << "\n";
 
-        cv::Mat Kl = (cv::Mat_<double>(3,3) << 1107.58877335145,0,703.563442850518,0,1105.93566117489,963.193789785819,0,0,1);
-        cv::Mat Kr = (cv::Mat_<double>(3,3) << 1104.28764692449,0,761.642398493953,0,1105.31682336766,962.344514230255,0,0,1);
+        //cv::Mat Kl = (cv::Mat_<double>(3,3) << 1107.58877335145,0,703.563442850518,0,1105.93566117489,963.193789785819,0,0,1);
+        //cv::Mat Kr = (cv::Mat_<double>(3,3) << 1104.28764692449,0,761.642398493953,0,1105.31682336766,962.344514230255,0,0,1);
         //cv::Mat C = (cv::Mat_<double>(3,4) << 1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0);
         cv::Mat PoseL = (cv::Mat_<double>(4,4) << 1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0);
         cv::Mat PoseR = (cv::Mat_<double>(4,4) << 1.0000,-0.0073,-0.0016, -554.3483, 0.0073,0.9998,-0.0188,-0.4350, 0.0017,0.0187,0.9998,-0.7893, 0,0,0,1.0000);
         cv::Mat Ldist_coeff = (cv::Mat_<double>(1,5) << -0.0305748283698362, 0.0530084757712889, 0.00198169725147652, 0.0013820669430398, 0);
         cv::Mat Rdist_coeff = (cv::Mat_<double>(1,5) << -0.0243498347962812, 0.0447656953196109, 0.0026529511902253, 0.00225483859237588, 0);
-        cv::Mat Pl = (cv::Mat_<double>(3,4) << 1107.58877335145, 0, 703.563442850518, 0, 0, 1105.93566117489, 963.193789785819, 0, 0, 0, 1, 0);
-        cv::Mat Pr = (cv::Mat_<double>(3,4) << 1105.57021914223,6.18934957543074,759.754258185686,-612760.0875376,9.71869909913803, 1123.12983099782,941.444195743573,-1240.37638207625, 0.001724650725893,0.0187425606411105,0.999822855310123,-0.789271765090486);
+        cv::Mat Pl = (cv::Mat_<double>(3,4) << \
+                1107.58877335145, 0, 703.563442850518, 0, \
+                0, 1105.93566117489, 963.193789785819, 0, \
+                0, 0, 1, 0);
+        cv::Mat Pr = (cv::Mat_<double>(3,4) << \
+                1105.57021914223,6.18934957543074,759.754258185686,-612760.0875376, \
+                9.71869909913803, 1123.12983099782,941.444195743573,-1240.37638207625, \
+                0.001724650725893,0.0187425606411105,0.999822855310123,-0.789271765090486);
         std::vector<Eigen::Vector3d> pts3_now, pts3_prev;
         std::vector<cv::Point2f> prev_left_points_d, prev_right_points_d,
-            left_points_d, right_points_d,
-            prev_left_points, prev_right_points,
-            left_points, right_points;
+            left_points_d, right_points_d;//,
+        //    prev_left_points, prev_right_points,
+        //    left_points, right_points;
         for (unsigned int i = 0; i < good_pts[0].size(); i++) {
             left_points_d.push_back( good_pts[0][i].pt);
             right_points_d.push_back( good_pts[1][i].pt);
             prev_left_points_d.push_back( good_pts[2][i].pt);
             prev_right_points_d.push_back( good_pts[3][i].pt);
         }
-	cv::undistortPoints(left_points_d, left_points, Kl, Ldist_coeff);
-	cv::undistortPoints(right_points_d, right_points, Kr, Rdist_coeff);
-	cv::undistortPoints(prev_left_points_d, prev_left_points, Kl, Ldist_coeff);
-	cv::undistortPoints(prev_right_points_d, prev_right_points, Kr, Rdist_coeff);
+	// cv::undistortPoints(left_points_d, left_points, Kl, Ldist_coeff);
+	// cv::undistortPoints(right_points_d, right_points, Kr, Rdist_coeff);
+	// cv::undistortPoints(prev_left_points_d, prev_left_points, Kl, Ldist_coeff);
+	// cv::undistortPoints(prev_right_points_d, prev_right_points, Kr, Rdist_coeff);
 
 	for (unsigned int i = 0; i < left_points_d.size(); i++) {
 	    Eigen::Vector3d pt_now = triangulatePoint(Pl,Pr,left_points_d[i],right_points_d[i]);
@@ -330,8 +340,8 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
         T_final = ans.second;
         position += T_final;
         orientation = R_final * orientation;
-        std::cout << "Cur Rotation: \n" << R_final << std::endl << "dT: \n" << T_final << std::endl;
-        std::cout << "Pose: \n" << orientation << std::endl << "T: \n" << position << std::endl;
+        std::cout << "Cur Rotation: \n" << R_final << std::endl << "dT: \n\n" << T_final << std::endl;
+        std::cout << "Orientation: \n" << orientation << std::endl << "T: \n" << position << std::endl;
 
         //cv::Mat stiched = make_mono_image(CL_mat, CR_mat, good_pts[0], good_pts[1]);
         //sized_show(stiched, 0.25, "MONO IMAGE");
@@ -364,29 +374,21 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
                      0,  0,          0,          1;
 
         std::vector<cv::Point> modelPts2d_L, modelPts2d_R; // points of model in images
-        // compute vertices porjections in both current images
+        // compute vertices projections in both current images
         for(unsigned int i = 0 ; i < modelPoints.size(); i++) {
-            Eigen::Vector4d cube_vert;
-            cube_vert.block<3,1>(0,0) = modelPoints[i]; // 1m cube
-            cube_vert.block<3,1>(0,0) += modelOrigin; // center to origin
-            cube_vert.block<3,1>(0,0) -= worldPos; // move relative to our real position
-            cube_vert(3, 0) = 1; // homogenous
+            Eigen::Vector4d model_vert;
+            model_vert.block<3,1>(0,0) = modelPoints[i]; // 1m cube
+            model_vert.block<3,1>(0,0) += modelOrigin; // center to origin
+            model_vert.block<3,1>(0,0) -= worldPos; // move relative to our real position
+            model_vert(3, 0) = 1; // homogenous
             // place vertex in reference frame of initial camera
-            cube_vert = CI_from_B * (B_from_W * cube_vert);
-            // translate to compensate for motion of the camera position DOESNT WORK YET(?)
-            // cube_vert(0, 0) -= position(0, 0);
-            // cube_vert(1, 0) -= position(1, 0);
-            // cube_vert(2, 0) -= position(2, 0);
-            // // adjust camera for current orientation
-            // Eigen::Matrix4d cur_orientH = Eigen::Matrix4d::Zero();
-            // cur_orientH.block<3,3>(0,0) = orientation;
-            // cube_vert = cur_orientH * cube_vert;
-
+            model_vert = CI_from_B * (B_from_W * model_vert);
+            // Get vector of image coordinates for vertices of model
             cv::Mat world_pt_homog = cv::Mat_<double>(4,1);
-            world_pt_homog.at<double>(0,0) = cube_vert(0,0);
-            world_pt_homog.at<double>(1,0) = cube_vert(1,0);
-            world_pt_homog.at<double>(2,0) = cube_vert(2,0);
-            world_pt_homog.at<double>(3,0) = cube_vert(3,0);
+            world_pt_homog.at<double>(0,0) = model_vert(0,0);
+            world_pt_homog.at<double>(1,0) = model_vert(1,0);
+            world_pt_homog.at<double>(2,0) = model_vert(2,0);
+            world_pt_homog.at<double>(3,0) = model_vert(3,0);
             cv::Mat im_pt_homog_L = Pl * world_pt_homog;
             im_pt_homog_L /= im_pt_homog_L.at<double>(2,0);
             cv::Mat im_pt_homog_R = Pr * world_pt_homog;

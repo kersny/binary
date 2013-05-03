@@ -45,5 +45,14 @@ void StereoProcess::im_pair_callback(const sm::ImageConstPtr& L_Image,
     cv::Mat L_mat = im_to_opencv(L_Image);
     cv::Mat R_mat = im_to_opencv(R_Image);
 
-    process_im_pair(L_mat, R_mat, (*L_Image).header.stamp);
+    double size_factor = 1.0;
+    // Easily resize input images before computation
+    if(size_factor < 1.0) {
+        cv::Mat L_new, R_new; 
+        cv::resize(L_mat, L_new, cv::Size(), size_factor, size_factor);
+        cv::resize(R_mat, R_new, cv::Size(), size_factor, size_factor);
+        process_im_pair(L_new, R_new, (*L_Image).header.stamp);
+    } else {
+        process_im_pair(L_mat, R_mat, (*L_Image).header.stamp);
+    }
 }
