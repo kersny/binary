@@ -2,6 +2,8 @@
 #include "stereoBagParser.cpp"
 #include "OBJParser.hpp"
 
+#define OBJ_FILE "models/humanoid.obj"
+
 int main(int argc, char** argv) {
     ros::init(argc, argv, "BINary");
     ros::NodeHandle nh;
@@ -11,8 +13,7 @@ int main(int argc, char** argv) {
     cv::initModule_nonfree(); // stallman hates me
     std::srand((unsigned)std::time(0));
 
-
-    OBJParser p = OBJParser("models/cube.obj");
+    OBJParser p = OBJParser(OBJ_FILE);
     if(p.readFile()) {
         sp.modelPoints = p.getVerts();
         p.generateMeshEdges();

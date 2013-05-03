@@ -237,7 +237,7 @@ void drawDot( cv::Mat img, cv::Point center )
 
     cv::circle( img,
             center,
-            10.0,
+            5.0,
             cv::Scalar( 0, 0, 255 ),
             thickness, lineType );
 }
@@ -377,35 +377,46 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
         // compute vertices projections in both current images
         for(unsigned int i = 0 ; i < modelPoints.size(); i++) {
             Eigen::Vector4d model_vert;
-            model_vert.block<3,1>(0,0) = modelPoints[i]; // 1m cube
+            model_vert.block<3,1>(0,0) = 100.0 * modelPoints[i]; // 1m cube
             model_vert.block<3,1>(0,0) += modelOrigin; // center to origin
             model_vert.block<3,1>(0,0) -= worldPos; // move relative to our real position
             model_vert(3, 0) = 1; // homogenous
             // place vertex in reference frame of initial camera
-            model_vert = CI_from_B * (B_from_W * model_vert);
-            // Get vector of image coordinates for vertices of model
-            cv::Mat world_pt_homog = cv::Mat_<double>(4,1);
-            world_pt_homog.at<double>(0,0) = model_vert(0,0);
-            world_pt_homog.at<double>(1,0) = model_vert(1,0);
-            world_pt_homog.at<double>(2,0) = model_vert(2,0);
-            world_pt_homog.at<double>(3,0) = model_vert(3,0);
-            cv::Mat im_pt_homog_L = Pl * world_pt_homog;
-            im_pt_homog_L /= im_pt_homog_L.at<double>(2,0);
-            cv::Mat im_pt_homog_R = Pr * world_pt_homog;
-            im_pt_homog_R /= im_pt_homog_R.at<double>(2,0);
-            cv::Point im_ptL = cv::Point(im_pt_homog_L.at<double>(0,0),
-                                         im_pt_homog_L.at<double>(1,0));
-            cv::Point im_ptR = cv::Point(im_pt_homog_R.at<double>(0,0),
-                                         im_pt_homog_R.at<double>(1,0));
-            modelPts2d_L.push_back(im_ptL);
-            modelPts2d_R.push_back(im_ptR);
+            Eigen::Matrix4d CC_from_CI = Eigen::Matrix4d::Identity();
+            CC_from_CI.block<3,3>(0,0) = orientation.inverse(); 
+            model_vert = CC_from_CI * (CI_from_B * (B_from_W * model_vert));
+            if(model_vert(2, 0) < 0) {
+                // Batman style points can suddenly appear behind camera too due to P
+                cv::Point sentinelPt = cv::Point(-10000, -10000);
+                modelPts2d_L.push_back(sentinelPt);
+                modelPts2d_R.push_back(sentinelPt);
+            } else {
+                // Get vector of image coordinates for vertices of model
+                cv::Mat world_pt_homog = cv::Mat_<double>(4,1);
+                world_pt_homog.at<double>(0,0) = model_vert(0,0);
+                world_pt_homog.at<double>(1,0) = model_vert(1,0);
+                world_pt_homog.at<double>(2,0) = model_vert(2,0);
+                world_pt_homog.at<double>(3,0) = model_vert(3,0);
+                cv::Mat im_pt_homog_L = Pl * world_pt_homog;
+                im_pt_homog_L /= im_pt_homog_L.at<double>(2,0);
+                cv::Mat im_pt_homog_R = Pr * world_pt_homog;
+                im_pt_homog_R /= im_pt_homog_R.at<double>(2,0);
+                cv::Point im_ptL = cv::Point(im_pt_homog_L.at<double>(0,0),
+                                             im_pt_homog_L.at<double>(1,0));
+                cv::Point im_ptR = cv::Point(im_pt_homog_R.at<double>(0,0),
+                                             im_pt_homog_R.at<double>(1,0));
+                modelPts2d_L.push_back(im_ptL);
+                modelPts2d_R.push_back(im_ptR);
+            }
         }
         // draw model edges in both images
         for(unsigned int i = 0 ; i < modelEdges.size(); i++) {
             int x = modelEdges[i].first;
             int y = modelEdges[i].second;
-            drawLine(CL_out, modelPts2d_L[x], modelPts2d_L[y]);
-            drawLine(CR_out, modelPts2d_R[x], modelPts2d_R[y]);
+            if(modelPts2d_L[x].x != -10000) // no edges for fake points
+                drawLine(CL_out, modelPts2d_L[x], modelPts2d_L[y]);
+            if(modelPts2d_R[x].x != -10000)
+                drawLine(CR_out, modelPts2d_R[x], modelPts2d_R[y]);
         }
         for(unsigned int i = 0 ; i < modelPts2d_L.size(); i++) {
             drawDot(CL_out, modelPts2d_L[i]);
@@ -414,9 +425,8 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
 
         Eigen::Matrix3d B_from_CI_R = CI_from_B.block<3,3>(0,0).inverse();
         Eigen::Matrix3d W_from_B_R = B_from_W.block<3,3>(0,0).inverse();
-        Eigen::Matrix3d CI_from_CC = orientation; 
-        // orientation rotation transforms from current camera to initial camera
-        worldPos = W_from_B_R * (B_from_CI_R * (CI_from_CC * position));
+        // Get current odometry position into world frame 
+        worldPos = W_from_B_R * (B_from_CI_R * position);
         std::cout << "World pos: \n" << worldPos << "\n";
 
         cv::drawKeypoints(PL_mat, good_pts[2], PL_out, cv::Scalar(255, 0, 0), DRK);

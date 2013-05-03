@@ -26,7 +26,7 @@ class OBJParser {
             std::string line;
             while(std::getline(*obj_ifs, line)) {
                 double x, y, z;
-                if (3 == sscanf(line.c_str(), "v %lf, %lf, %lf", &x, &y, &z)) {
+                if (3 == sscanf(line.c_str(), "v %lf %lf %lf", &x, &y, &z)) {
                     Eigen::Vector3d pt = Eigen::Vector3d(x, y, z);
                     verts.push_back(pt);
                 } else if(line.length() < 2) {
@@ -37,7 +37,7 @@ class OBJParser {
                         std::vector<int> v_is;
                         std::stringstream vl_stream(line.substr(2));
                         while(std::getline(vl_stream, cur_face, ' ')) {
-                            int cur_i = atoi(cur_face.c_str());
+                            int cur_i = atoi(cur_face.c_str()) - 1;
                             v_is.push_back(cur_i);
                         }
                         faces.push_back(v_is);
