@@ -45,6 +45,7 @@ class StereoProcess {
     private:
         Eigen::Matrix<double, 3, 1> position;
         Eigen::Vector3d worldPos;
+        Eigen::Matrix3d worldRot;
         Eigen::Matrix3d orientation;
         Eigen::Vector3d modelOrigin;
 

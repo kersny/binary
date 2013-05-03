@@ -20,6 +20,7 @@ StereoProcess::StereoProcess() {
     max_im_pairs = 20;
     position = Eigen::Vector3d::Zero();
     orientation = Eigen::Matrix3d::Identity();
+    worldRot = Eigen::Matrix3d::Identity();
     modelOrigin = Eigen::Vector3d(3000, 0, 0);
     worldPos = Eigen::Vector3d(0, 0, 0);
     std::cout << "Using " << FEATURE_DETECTOR << " Feature Extractor" << std::endl;
@@ -411,10 +412,10 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
 
         Eigen::Matrix3d B_from_CI_R = CI_from_B.block<3,3>(0,0).inverse();
         Eigen::Matrix3d W_from_B_R = B_from_W.block<3,3>(0,0).inverse();
-        worldPos = W_from_B_R * (B_from_CI_R * position);
+        Eigen::Matrix3d CI_from_CC = orientation; 
+        // orientation rotation transforms from current camera to initial camera
+        worldPos = W_from_B_R * (B_from_CI_R * (CI_from_CC * position));
         std::cout << "World pos: \n" << worldPos << "\n";
-
-        //drawLine(CL_out, cv::Point( 100, 100), cv::Point( 500, 500));
 
         cv::drawKeypoints(PL_mat, good_pts[2], PL_out, cv::Scalar(255, 0, 0), DRK);
         cv::drawKeypoints(PR_mat, good_pts[3], PR_out, cv::Scalar(255, 0, 0), DRK);
