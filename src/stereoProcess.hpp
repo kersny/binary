@@ -25,6 +25,7 @@
 #include "omp.h"
 
 #include "utilities.hpp"
+#include "frame.hpp"
 
 #define sm sensor_msgs
 #define mf message_filters
@@ -52,6 +53,7 @@ class StereoProcess {
         cv::Ptr<cv::FeatureDetector> detector;
         cv::Ptr<cv::DescriptorExtractor> extractor;
 
+        std::vector<Frame> bundle_frames;
         std::vector<cv::KeyPoint> PL_kps, PR_kps;
         cv::Mat PL_features, PR_features;
         cv::Mat PL_mat, PR_mat;

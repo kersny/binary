@@ -1,6 +1,8 @@
 #include "odometryMath.hpp"
 #include <iomanip>
 #include <opencv2/core/eigen.hpp>
+#include <unsupported/Eigen/NumericalDiff>
+#include <unsupported/Eigen/NonLinearOptimization>
 
 Eigen::Vector3d triangulatePoint_linear_me(Eigen::Matrix<double, 3, 4> Pl,Eigen::Matrix<double, 3, 4> Pr,Eigen::Vector2d left_point,Eigen::Vector2d right_point)
 {
@@ -139,4 +141,115 @@ std::pair<Eigen::Matrix3d,Eigen::Vector3d> computeOrientationRansac(std::vector<
         iter++;
     }
     return computeOrientation(pts1_all,pts2_all);
+}
+
+Eigen::Matrix3d rotation_matrix_from_rotation_vector(Eigen::Vector3d v)
+{
+    Eigen::Matrix3d ret;
+    return ret;
+}
+
+Eigen::Vector3d rotation_vector_from_rotation_matrix(Eigen::Matrix3d m)
+{
+    Eigen::Vector3d ret;
+    return ret;
+}
+
+template<typename _Scalar, int NX=Eigen::Dynamic, int NY=Eigen::Dynamic>
+struct Functor
+{
+  typedef _Scalar Scalar;
+  enum {
+    InputsAtCompileTime = NX,
+    ValuesAtCompileTime = NY
+  };
+  typedef Eigen::Matrix<Scalar,InputsAtCompileTime,1> InputType;
+  typedef Eigen::Matrix<Scalar,ValuesAtCompileTime,1> ValueType;
+  typedef Eigen::Matrix<Scalar,ValuesAtCompileTime,InputsAtCompileTime> JacobianType;
+
+  int m_inputs, m_values;
+
+  Functor() : m_inputs(InputsAtCompileTime), m_values(ValuesAtCompileTime) {}
+  Functor(int inputs, int values) : m_inputs(inputs), m_values(values) {}
+
+  int inputs() const { return m_inputs; }
+  int values() const { return m_values; }
+
+};
+
+struct Reproject : Functor<double>
+{
+    Reproject(BundleAdjustmentArgs a)
+        : Functor<double>(6*a.num_cameras,2*a.total_points), args(a) {}
+    int operator()(const Eigen::VectorXd &x, Eigen::VectorXd &fvec) const
+    {
+        for (unsigned int j = 0; j < args.observations.size(); j++) {
+            int index = args.observations[j].cameraindex;
+            Eigen::Vector3d rvec = x.block<3,1>(6*index,0);
+            Eigen::Vector3d tvec = x.block<3,1>(6*index, 0);
+            Eigen::Matrix3d rmatrix = rotation_matrix_from_rotation_vector(rvec);
+            Eigen::Matrix4d transform;
+            transform.block<3,3>(0,0) = rmatrix;
+            transform.block<3,1>(0,3) = tvec;
+            Eigen::Vector2d lpoint = args.observations[j].left;
+            Eigen::Vector2d rpoint = args.observations[j].right;
+            Eigen::Vector3d world  = args.observations[j].world;
+            Eigen::Vector4d world_homog;
+            world_homog << world, 1.0;
+            transform(3,3) = 1.0;
+            Eigen::Vector3d lpoint_prime = args.project_left * transform * world_homog;
+            Eigen::Vector3d rpoint_prime = args.project_right * transform * world_homog;
+            fvec.block<2,1>(4*j,0) = lpoint - lpoint_prime.block<2,1>(0,0)/lpoint_prime(2,0);
+            fvec.block<2,1>(4*j+2,0) = rpoint - rpoint_prime.block<2,1>(0,0)/rpoint_prime(2,0);
+        }
+        return 0;
+    }
+
+    private:
+    BundleAdjustmentArgs args;
+};
+struct BundleAdjustmentFunctor
+{
+    BundleAdjustmentFunctor(BundleAdjustmentArgs s)
+    {
+        instance = new Reproject(s);
+        jac = new Eigen::NumericalDiff<Reproject,Eigen::Central>(*instance);
+    }
+    int operator()(const Eigen::VectorXd &x, Eigen::VectorXd &fvec) const
+    {
+        return (*instance)(x,fvec);
+    }
+    int df(const Eigen::VectorXd &x, Eigen::MatrixXd &fjac) const
+    {
+        return jac->df(x,fjac);
+    }
+    ~BundleAdjustmentFunctor()
+    {
+        delete instance;
+        delete jac;
+    }
+    int inputs() const { return instance->inputs(); }
+    int values() const { return instance->values(); }
+    Reproject* instance;
+    Eigen::NumericalDiff<Reproject,Eigen::Central> *jac;
+};
+
+std::vector<Camera> bundleAdjust(BundleAdjustmentArgs args)
+{
+    BundleAdjustmentFunctor foo(args);
+    Eigen::LevenbergMarquardt<BundleAdjustmentFunctor, double> lm(foo);
+    Eigen::VectorXd bar(6*args.cameras.size());
+    for (unsigned int i = 0; i < args.cameras.size(); i++) {
+        bar.block<3,1>(6*i,0) = rotation_vector_from_rotation_matrix(args.cameras[i].rotation);
+        bar.block<3,1>(6*i+3,0) = args.cameras[i].position;
+    }
+    lm.minimize(bar);
+    std::vector<Camera> ret;
+    for (unsigned int i = 0; i < args.cameras.size(); i++) {
+        Camera c;
+        c.rotation = rotation_matrix_from_rotation_vector(bar.block<3,1>(6*i,0));
+        c.position = bar.block<3,1>(6*i+3,0);
+        ret.push_back(c);
+    }
+    return ret;
 }

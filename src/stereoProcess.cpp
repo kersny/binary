@@ -2,6 +2,7 @@
 #include "stereoBagParser.cpp"
 #include "OBJParser.hpp"
 #include "odometryMath.hpp"
+#include "frame.hpp"
 
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
@@ -246,6 +247,23 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
         const cv::Mat& CR_mat,
         ros::Time c_time)
 {
+    std::cout << bundle_frames.size() << std::endl;
+    if (bundle_frames.size() >= 10) {
+        std::cout << "Bundle Adjusting" << std::endl;
+        std::vector< std::vector<cv::KeyPoint> > BA_pts;
+        std::vector<cv::Mat> BA_fts;
+        for (unsigned int i = 0; i < bundle_frames.size(); i++) {
+            BA_pts.push_back(bundle_frames[i].L_kps);
+            BA_fts.push_back(bundle_frames[i].L_features);
+        }
+        for (int i = (int)bundle_frames.size() - 1; i >= 0; i--) {
+            BA_pts.push_back(bundle_frames[i].R_kps);
+            BA_fts.push_back(bundle_frames[i].R_features);
+        }
+        std::vector< std::vector<cv::KeyPoint> > BA_good_pts;
+        BA_good_pts = get_circular_matches(BA_pts, BA_fts);
+        bundle_frames.clear();
+    }
     std::ostringstream os;
     os << "Processing image pair with timestamp: " << c_time << std::endl;
     debug_print(os.str(), 3);
@@ -341,6 +359,14 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
         T_final = ans.second;
         position += T_final;
         orientation = R_final * orientation;
+        Frame f;
+        f.L_kps = CL_kps;
+        f.R_kps = CR_kps;
+        f.L_features = CL_features;
+        f.R_features = CR_features;
+        f.Orientation_world = orientation;
+        f.Translation_world = position;
+        bundle_frames.push_back(f);
         std::cout << "Cur Rotation: \n" << R_final << std::endl << "dT: \n\n" << T_final << std::endl;
         std::cout << "Orientation: \n" << orientation << std::endl << "T: \n" << position << std::endl;
 
