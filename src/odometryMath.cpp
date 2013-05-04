@@ -146,12 +146,20 @@ std::pair<Eigen::Matrix3d,Eigen::Vector3d> computeOrientationRansac(std::vector<
 Eigen::Matrix3d rotation_matrix_from_rotation_vector(Eigen::Vector3d v)
 {
     Eigen::Matrix3d ret;
+    cv::Mat rot_v, ret_m;
+    cv::eigen2cv(v, rot_v);
+    cv::Rodrigues(rot_v, ret_m);
+    cv::cv2eigen(ret_m, ret);
     return ret;
 }
 
 Eigen::Vector3d rotation_vector_from_rotation_matrix(Eigen::Matrix3d m)
 {
     Eigen::Vector3d ret;
+    cv::Mat rot_m, rot_v;
+    cv::eigen2cv(m, rot_m);
+    cv::Rodrigues(rot_m, rot_v);
+    cv::cv2eigen(rot_v,ret);
     return ret;
 }
 

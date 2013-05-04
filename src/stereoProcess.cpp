@@ -247,6 +247,13 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
         const cv::Mat& CR_mat,
         ros::Time c_time)
 {
+    Eigen::Matrix<double, 3, 4> Pl,Pr;
+    Pl << 1107.58877335145, 0, 703.563442850518, 0,
+          0, 1105.93566117489, 963.193789785819, 0,
+          0, 0, 1, 0;
+    Pr << 1105.57021914223,6.18934957543074,759.754258185686,-612760.0875376,
+          9.71869909913803, 1123.12983099782,941.444195743573,-1240.37638207625,
+          0.001724650725893,0.0187425606411105,0.999822855310123,-0.789271765090486;
     std::cout << bundle_frames.size() << std::endl;
     if (bundle_frames.size() >= 10) {
         std::cout << "Bundle Adjusting" << std::endl;
@@ -262,6 +269,30 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
         }
         std::vector< std::vector<cv::KeyPoint> > BA_good_pts;
         BA_good_pts = get_circular_matches(BA_pts, BA_fts);
+        BundleAdjustmentArgs args;
+        args.num_cameras = 10;
+        args.total_points = BA_good_pts[0].size()*10;
+        args.project_left = Pl;
+        args.project_right = Pr;
+        for (unsigned int i = 0; i < bundle_frames.size(); i++) {
+            Camera c;
+            c.rotation = bundle_frames[i].Orientation_world;
+            c.position = bundle_frames[i].Translation_world;
+            args.cameras.push_back(c);
+        }
+        for (unsigned int i = 0; i < 10; i++) {
+            for (unsigned int j = 0; j < BA_good_pts[i].size(); j++) {
+                Observation o;
+                Eigen::Vector2d tmp;
+                o.cameraindex = 0;
+                o.left(0) = BA_good_pts[i][j].pt.x;
+                o.left(1) = BA_good_pts[i][j].pt.y;
+                o.right(0) = BA_good_pts[10-i][j].pt.x;
+                o.right(1) = BA_good_pts[10-i][j].pt.y;
+                args.observations.push_back(o);
+            }
+        }
+        std::vector<Camera> ret = bundleAdjust(args);
         bundle_frames.clear();
     }
     std::ostringstream os;
@@ -321,13 +352,6 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
         //cv::Mat PoseR = (cv::Mat_<double>(4,4) << 1.0000,-0.0073,-0.0016, -554.3483, 0.0073,0.9998,-0.0188,-0.4350, 0.0017,0.0187,0.9998,-0.7893, 0,0,0,1.0000);
         //cv::Mat Ldist_coeff = (cv::Mat_<double>(1,5) << -0.0305748283698362, 0.0530084757712889, 0.00198169725147652, 0.0013820669430398, 0);
         //cv::Mat Rdist_coeff = (cv::Mat_<double>(1,5) << -0.0243498347962812, 0.0447656953196109, 0.0026529511902253, 0.00225483859237588, 0);
-        Eigen::Matrix<double, 3, 4> Pl,Pr;
-        Pl << 1107.58877335145, 0, 703.563442850518, 0,
-              0, 1105.93566117489, 963.193789785819, 0,
-              0, 0, 1, 0;
-        Pr << 1105.57021914223,6.18934957543074,759.754258185686,-612760.0875376,
-              9.71869909913803, 1123.12983099782,941.444195743573,-1240.37638207625,
-              0.001724650725893,0.0187425606411105,0.999822855310123,-0.789271765090486;
         std::vector<Eigen::Vector3d> pts3_now, pts3_prev;
         std::vector<Eigen::Vector2d> prev_left_points, prev_right_points, left_points, right_points;
         for (unsigned int i = 0; i < good_pts[0].size(); i++) {
