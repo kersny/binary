@@ -70,32 +70,9 @@ Eigen::Vector3d triangulatePoint_nonlinear_eigen(Eigen::Matrix<double, 3, 4> Pl,
     std::cout << "Nonlinear triangulation iterations:" << iters << std::endl;
     return estimate;
 }
-Eigen::Vector3d triangulatePoint_cv(cv::Mat Pl,cv::Mat Pr,cv::Point2f left_point,cv::Point2f right_point)
+Eigen::Vector3d triangulatePoint(Eigen::Matrix<double, 3, 4> Pl,Eigen::Matrix<double, 3, 4> Pr,Eigen::Vector2d left_point,Eigen::Vector2d right_point)
 {
-    cv::Mat outp;
-    cv::Mat left_points_m(2,1,CV_64F);
-    cv::Mat right_points_m(2,1,CV_64F);
-    left_points_m.at<double>(0,0) = left_point.x;
-    left_points_m.at<double>(1,0) = left_point.y;
-    right_points_m.at<double>(0,0) = right_point.x;
-    right_points_m.at<double>(1,0) = right_point.y;
-    cv::triangulatePoints(Pl,Pr,left_points_m,right_points_m,outp);
-    Eigen::Vector3d ret;
-    ret << outp.at<double>(0,0)/outp.at<double>(3,0),
-           outp.at<double>(1,0)/outp.at<double>(3,0),
-           outp.at<double>(2,0)/outp.at<double>(3,0);
-    return ret;
-}
-Eigen::Vector3d triangulatePoint(cv::Mat Pl,cv::Mat Pr,cv::Point2f left_point,cv::Point2f right_point)
-{
-    Eigen::Matrix<double,3,4> Ple,Pre;
-    Eigen::Matrix<double,2,1> lp,rp;
-    lp(0,0) = (double)left_point.x;
-    lp(1,0) = (double)left_point.y;
-    rp(0,0) = (double)right_point.x;
-    rp(1,0) = (double)right_point.y;
-    cv::cv2eigen(Pl,Ple);cv::cv2eigen(Pr,Pre);
-    return triangulatePoint_linear_eigen(Ple,Pre,lp,rp);
+    return triangulatePoint_linear_eigen(Pl,Pr,left_point,right_point);
 }
 
 std::pair<Eigen::Matrix3d,Eigen::Vector3d> computeOrientation(std::vector<Eigen::Vector3d> pts1, std::vector<Eigen::Vector3d> pts2)

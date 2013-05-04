@@ -299,37 +299,38 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
         //cv::Mat Kl = (cv::Mat_<double>(3,3) << 1107.58877335145,0,703.563442850518,0,1105.93566117489,963.193789785819,0,0,1);
         //cv::Mat Kr = (cv::Mat_<double>(3,3) << 1104.28764692449,0,761.642398493953,0,1105.31682336766,962.344514230255,0,0,1);
         //cv::Mat C = (cv::Mat_<double>(3,4) << 1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0);
-        cv::Mat PoseL = (cv::Mat_<double>(4,4) << 1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0);
-        cv::Mat PoseR = (cv::Mat_<double>(4,4) << 1.0000,-0.0073,-0.0016, -554.3483, 0.0073,0.9998,-0.0188,-0.4350, 0.0017,0.0187,0.9998,-0.7893, 0,0,0,1.0000);
-        cv::Mat Ldist_coeff = (cv::Mat_<double>(1,5) << -0.0305748283698362, 0.0530084757712889, 0.00198169725147652, 0.0013820669430398, 0);
-        cv::Mat Rdist_coeff = (cv::Mat_<double>(1,5) << -0.0243498347962812, 0.0447656953196109, 0.0026529511902253, 0.00225483859237588, 0);
-        cv::Mat Pl = (cv::Mat_<double>(3,4) << \
-                1107.58877335145, 0, 703.563442850518, 0, \
-                0, 1105.93566117489, 963.193789785819, 0, \
-                0, 0, 1, 0);
-        cv::Mat Pr = (cv::Mat_<double>(3,4) << \
-                1105.57021914223,6.18934957543074,759.754258185686,-612760.0875376, \
-                9.71869909913803, 1123.12983099782,941.444195743573,-1240.37638207625, \
-                0.001724650725893,0.0187425606411105,0.999822855310123,-0.789271765090486);
+        //cv::Mat PoseL = (cv::Mat_<double>(4,4) << 1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0);
+        //cv::Mat PoseR = (cv::Mat_<double>(4,4) << 1.0000,-0.0073,-0.0016, -554.3483, 0.0073,0.9998,-0.0188,-0.4350, 0.0017,0.0187,0.9998,-0.7893, 0,0,0,1.0000);
+        //cv::Mat Ldist_coeff = (cv::Mat_<double>(1,5) << -0.0305748283698362, 0.0530084757712889, 0.00198169725147652, 0.0013820669430398, 0);
+        //cv::Mat Rdist_coeff = (cv::Mat_<double>(1,5) << -0.0243498347962812, 0.0447656953196109, 0.0026529511902253, 0.00225483859237588, 0);
+        Eigen::Matrix<double, 3, 4> Pl,Pr;
+        Pl << 1107.58877335145, 0, 703.563442850518, 0,
+              0, 1105.93566117489, 963.193789785819, 0,
+              0, 0, 1, 0;
+        Pr << 1105.57021914223,6.18934957543074,759.754258185686,-612760.0875376,
+              9.71869909913803, 1123.12983099782,941.444195743573,-1240.37638207625,
+              0.001724650725893,0.0187425606411105,0.999822855310123,-0.789271765090486;
         std::vector<Eigen::Vector3d> pts3_now, pts3_prev;
-        std::vector<cv::Point2f> prev_left_points_d, prev_right_points_d,
-            left_points_d, right_points_d;//,
-        //    prev_left_points, prev_right_points,
-        //    left_points, right_points;
+        std::vector<Eigen::Vector2d> prev_left_points, prev_right_points, left_points, right_points;
         for (unsigned int i = 0; i < good_pts[0].size(); i++) {
-            left_points_d.push_back( good_pts[0][i].pt);
-            right_points_d.push_back( good_pts[1][i].pt);
-            prev_left_points_d.push_back( good_pts[2][i].pt);
-            prev_right_points_d.push_back( good_pts[3][i].pt);
+            Eigen::Vector2d tmp;
+            tmp(0,0) = good_pts[0][i].pt.x;
+            tmp(1,0) = good_pts[0][i].pt.y;
+            left_points.push_back(tmp);
+            tmp(0,0) = good_pts[1][i].pt.x;
+            tmp(1,0) = good_pts[1][i].pt.y;
+            right_points.push_back(tmp);
+            tmp(0,0) = good_pts[2][i].pt.x;
+            tmp(1,0) = good_pts[2][i].pt.y;
+            prev_left_points.push_back(tmp);
+            tmp(0,0) = good_pts[3][i].pt.x;
+            tmp(1,0) = good_pts[3][i].pt.y;
+            prev_right_points.push_back(tmp);
         }
-	// cv::undistortPoints(left_points_d, left_points, Kl, Ldist_coeff);
-	// cv::undistortPoints(right_points_d, right_points, Kr, Rdist_coeff);
-	// cv::undistortPoints(prev_left_points_d, prev_left_points, Kl, Ldist_coeff);
-	// cv::undistortPoints(prev_right_points_d, prev_right_points, Kr, Rdist_coeff);
 
-	for (unsigned int i = 0; i < left_points_d.size(); i++) {
-	    Eigen::Vector3d pt_now = triangulatePoint(Pl,Pr,left_points_d[i],right_points_d[i]);
-            Eigen::Vector3d pt_prev = triangulatePoint(Pl,Pr,prev_left_points_d[i],prev_right_points_d[i]);
+	for (unsigned int i = 0; i < left_points.size(); i++) {
+	    Eigen::Vector3d pt_now = triangulatePoint(Pl,Pr,left_points[i],right_points[i]);
+            Eigen::Vector3d pt_prev = triangulatePoint(Pl,Pr,prev_left_points[i],prev_right_points[i]);
 	    pts3_now.push_back(pt_now);
 	    pts3_prev.push_back(pt_prev);
 	}
@@ -383,7 +384,7 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
             model_vert(3, 0) = 1; // homogenous
             // place vertex in reference frame of initial camera
             Eigen::Matrix4d CC_from_CI = Eigen::Matrix4d::Identity();
-            CC_from_CI.block<3,3>(0,0) = orientation.inverse(); 
+            CC_from_CI.block<3,3>(0,0) = orientation.inverse();
             model_vert = CC_from_CI * (CI_from_B * (B_from_W * model_vert));
             if(model_vert(2, 0) < 0) {
                 // Batman style points can suddenly appear behind camera too due to P
@@ -392,19 +393,14 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
                 modelPts2d_R.push_back(sentinelPt);
             } else {
                 // Get vector of image coordinates for vertices of model
-                cv::Mat world_pt_homog = cv::Mat_<double>(4,1);
-                world_pt_homog.at<double>(0,0) = model_vert(0,0);
-                world_pt_homog.at<double>(1,0) = model_vert(1,0);
-                world_pt_homog.at<double>(2,0) = model_vert(2,0);
-                world_pt_homog.at<double>(3,0) = model_vert(3,0);
-                cv::Mat im_pt_homog_L = Pl * world_pt_homog;
-                im_pt_homog_L /= im_pt_homog_L.at<double>(2,0);
-                cv::Mat im_pt_homog_R = Pr * world_pt_homog;
-                im_pt_homog_R /= im_pt_homog_R.at<double>(2,0);
-                cv::Point im_ptL = cv::Point(im_pt_homog_L.at<double>(0,0),
-                                             im_pt_homog_L.at<double>(1,0));
-                cv::Point im_ptR = cv::Point(im_pt_homog_R.at<double>(0,0),
-                                             im_pt_homog_R.at<double>(1,0));
+                Eigen::Vector3d im_pt_homog_L = Pl * model_vert;
+                im_pt_homog_L /= im_pt_homog_L(2,0);
+                Eigen::Vector3d im_pt_homog_R = Pr * model_vert;
+                im_pt_homog_R /= im_pt_homog_R(2,0);
+                cv::Point im_ptL = cv::Point(im_pt_homog_L(0,0),
+                                             im_pt_homog_L(1,0));
+                cv::Point im_ptR = cv::Point(im_pt_homog_R(0,0),
+                                             im_pt_homog_R(1,0));
                 modelPts2d_L.push_back(im_ptL);
                 modelPts2d_R.push_back(im_ptR);
             }
@@ -425,7 +421,7 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
 
         Eigen::Matrix3d B_from_CI_R = CI_from_B.block<3,3>(0,0).inverse();
         Eigen::Matrix3d W_from_B_R = B_from_W.block<3,3>(0,0).inverse();
-        // Get current odometry position into world frame 
+        // Get current odometry position into world frame
         worldPos = W_from_B_R * (B_from_CI_R * position);
         std::cout << "World pos: \n" << worldPos << "\n";
 
