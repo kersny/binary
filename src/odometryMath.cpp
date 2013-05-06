@@ -199,12 +199,12 @@ struct Reproject : Functor<double>
             Eigen::Matrix4d transform;
             transform.block<3,3>(0,0) = rmatrix;
             transform.block<3,1>(0,3) = tvec;
+            transform(3,3) = 1.0;
             Eigen::Vector2d lpoint = args.observations[j].left;
             Eigen::Vector2d rpoint = args.observations[j].right;
             Eigen::Vector3d world  = args.observations[j].world;
             Eigen::Vector4d world_homog;
             world_homog << world, 1.0;
-            transform(3,3) = 1.0;
             Eigen::Vector3d lpoint_prime = args.project_left * transform * world_homog;
             Eigen::Vector3d rpoint_prime = args.project_right * transform * world_homog;
             fvec.block<2,1>(4*j,0) = lpoint - lpoint_prime.block<2,1>(0,0)/lpoint_prime(2,0);
@@ -225,11 +225,14 @@ struct BundleAdjustmentFunctor
     }
     int operator()(const Eigen::VectorXd &x, Eigen::VectorXd &fvec) const
     {
-        return (*instance)(x,fvec);
+        int ret = (*instance)(x,fvec);
+        std::cout << "Total error:" << fvec.norm() << std::endl;
+        return ret;
     }
     int df(const Eigen::VectorXd &x, Eigen::MatrixXd &fjac) const
     {
-        return jac->df(x,fjac);
+        int ret = jac->df(x,fjac);
+        return ret;
     }
     ~BundleAdjustmentFunctor()
     {

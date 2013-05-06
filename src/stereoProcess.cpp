@@ -271,7 +271,7 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
         BA_good_pts = get_circular_matches(BA_pts, BA_fts);
         BundleAdjustmentArgs args;
         args.num_cameras = 10;
-        args.total_points = BA_good_pts[0].size()*10;
+        args.total_points = BA_good_pts[0].size()*20;
         args.project_left = Pl;
         args.project_right = Pr;
         for (unsigned int i = 0; i < bundle_frames.size(); i++) {
@@ -283,16 +283,30 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
         for (unsigned int i = 0; i < 10; i++) {
             for (unsigned int j = 0; j < BA_good_pts[i].size(); j++) {
                 Observation o;
-                Eigen::Vector2d tmp;
                 o.cameraindex = 0;
                 o.left(0) = BA_good_pts[i][j].pt.x;
                 o.left(1) = BA_good_pts[i][j].pt.y;
-                o.right(0) = BA_good_pts[10-i][j].pt.x;
-                o.right(1) = BA_good_pts[10-i][j].pt.y;
+                o.right(0) = BA_good_pts[19-i][j].pt.x;
+                o.right(1) = BA_good_pts[19-i][j].pt.y;
+                //o.world!!!
+                Eigen::Vector2d l,r;
+                l(0) = BA_good_pts[0][j].pt.x;
+                l(1) = BA_good_pts[0][j].pt.y;
+                r(0) = BA_good_pts[19][j].pt.x;
+                r(1) = BA_good_pts[19][j].pt.y;
+                o.world = triangulatePoint(Pl,Pr,l,r);
                 args.observations.push_back(o);
             }
         }
         std::vector<Camera> ret = bundleAdjust(args);
+        std::cout << "error" << std::endl;
+        worldPos = ret[9].position;
+        orientation = ret[9].rotation;
+        for (unsigned int i = 0; i < ret.size(); i++ ) {
+            //std::cout << args.cameras[i].position << std::endl << std::endl;
+            //std::cout << ret[i].position << std::endl << std::endl;
+            //std::cout << ret[i].rotation << std::endl << std::endl;
+        }
         bundle_frames.clear();
     }
     std::ostringstream os;
@@ -318,7 +332,6 @@ void StereoProcess::process_im_pair(const cv::Mat& CL_mat,
             }
         }
     }
-
     std::cout << "CL_kps size: " << CL_kps.size() << "\n";
     std::cout << "CR_kps size: " << CR_kps.size() << "\n";
     std::cout << "PL_kps size: " << PL_kps.size() << "\n";
